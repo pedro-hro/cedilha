@@ -7,17 +7,7 @@
   export let centered = false;
   export let active = true;
 
-  const dispatch = createEventDispatcher<{
-    previewSelect: {
-      text: string;
-      contextBefore: string;
-      contextAfter: string;
-      approxRatio: number;
-      isMath?: boolean;
-      mathMode?: "inline" | "display";
-      mathSubtext?: string;
-    };
-  }>();
+  const dispatch = createEventDispatcher<{ scroll: void }>();
 
   let renderedHtml = "";
   let container: HTMLElement;
@@ -56,7 +46,7 @@
         displayMode: isDisplay,
         throwOnError: false,
         strict: false,
-        trust: true,
+        trust: false,
       });
       mathCache.set(cacheKey, html);
       el.innerHTML = html;
@@ -69,6 +59,7 @@
   let scrollSettleTimer: ReturnType<typeof setTimeout> | null = null;
 
   function onScroll() {
+    dispatch("scroll");
     isScrolling = true;
     if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
     scrollSettleTimer = setTimeout(() => {
@@ -79,12 +70,88 @@
     }, 100);
   }
 
-  export function syncScrollRatio(ratio: number) {
-    if (!scrollContainer) return;
-    const max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
-    if (max > 0) {
-      scrollContainer.scrollTop = ratio * max;
+  // Rendered blocks tagged by the backend with their source range (UTF-16 offsets).
+  type Anchor = { el: HTMLElement; start: number; end: number };
+  let anchors: Anchor[] | null = null;
+
+  function getAnchors(): Anchor[] {
+    if (anchors) return anchors;
+    const list: Anchor[] = [];
+    container?.querySelectorAll<HTMLElement>("[data-src-start]").forEach((el) => {
+      const start = Number(el.dataset.srcStart);
+      const end = Number(el.dataset.srcEnd);
+      if (!Number.isFinite(start) || !(end > start)) return;
+      // The table wrapper is display:contents and has no box of its own.
+      const box = el.classList.contains("table-src")
+        ? ((el.firstElementChild as HTMLElement | null) ?? el)
+        : el;
+      list.push({ el: box, start, end });
+    });
+    anchors = list;
+    return list;
+  }
+
+  const clamp01 = (n: number) => Math.min(1, Math.max(0, n));
+
+  // Source offset of the block at the top of the viewport.
+  export function getScrollAnchor(): number {
+    if (!scrollContainer) return 0;
+    const list = getAnchors();
+    if (list.length === 0) {
+      const max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+      return max > 0 ? (scrollContainer.scrollTop / max) * content.length : 0;
     }
+    const viewTop = scrollContainer.getBoundingClientRect().top;
+    // Last block whose top is at or above the viewport top (document order is top-to-bottom).
+    let lo = 0;
+    let hi = list.length - 1;
+    let found = -1;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid].el.getBoundingClientRect().top <= viewTop + 1) {
+        found = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    if (found < 0) return 0;
+    const a = list[found];
+    const r = a.el.getBoundingClientRect();
+    const frac = r.height > 0 ? clamp01((viewTop - r.top) / r.height) : 0;
+    return a.start + frac * (a.end - a.start);
+  }
+
+  // Scroll so that the given source offset sits at the top of the viewport.
+  export function scrollToAnchor(pos: number) {
+    if (!scrollContainer) return;
+    const list = getAnchors();
+    if (list.length === 0) {
+      const max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+      if (max > 0 && content.length > 0) scrollContainer.scrollTop = clamp01(pos / content.length) * max;
+      return;
+    }
+    if (pos <= list[0].start) {
+      scrollContainer.scrollTop = 0;
+      return;
+    }
+    let lo = 0;
+    let hi = list.length - 1;
+    let found = 0;
+    while (lo <= hi) {
+      const mid = (lo + hi) >> 1;
+      if (list[mid].start <= pos) {
+        found = mid;
+        lo = mid + 1;
+      } else {
+        hi = mid - 1;
+      }
+    }
+    const a = list[found];
+    const frac = clamp01((pos - a.start) / (a.end - a.start));
+    const r = a.el.getBoundingClientRect();
+    const top = r.top - scrollContainer.getBoundingClientRect().top + scrollContainer.scrollTop;
+    scrollContainer.scrollTop = top + frac * r.height;
   }
 
   function flushRenderQueue() {
@@ -198,7 +265,9 @@
           lastRenderedRaw = raw;
           needsRender = false;
           renderedHtml = html;
+          anchors = null;
           await tick();
+          anchors = null;
           if (reqId === currentRequestId) {
             setupMathRendering();
           }
@@ -227,188 +296,6 @@
     }
   }
 
-  function getMathElement(node: Node | null): HTMLElement | null {
-    if (!node) return null;
-    const el = node instanceof HTMLElement ? node : node.parentElement;
-    return el?.closest<HTMLElement>(".math-inline, .math-display, .math") || null;
-  }
-
-  function getRangeMarkdownText(range: Range): string {
-    if (range.collapsed) return "";
-
-    const root =
-      (range.commonAncestorContainer instanceof HTMLElement
-        ? range.commonAncestorContainer
-        : range.commonAncestorContainer?.parentElement) || container;
-
-    if (!root) return range.toString();
-
-    const mathEls = root.querySelectorAll<HTMLElement>(".math-inline, .math-display, .math");
-    let hasIntersectingMath = false;
-    for (let i = 0; i < mathEls.length; i++) {
-      if (range.intersectsNode(mathEls[i])) {
-        hasIntersectingMath = true;
-        break;
-      }
-    }
-
-    if (!hasIntersectingMath) {
-      return range.toString();
-    }
-
-    try {
-      const clone = range.cloneContents();
-      const mathInClone = clone.querySelectorAll<HTMLElement>(
-        ".math-inline, .math-display, .math",
-      );
-      for (let i = 0; i < mathInClone.length; i++) {
-        const el = mathInClone[i];
-        const tex =
-          el.dataset.tex ||
-          el.querySelector("annotation[encoding='application/x-tex']")?.textContent?.trim() ||
-          "";
-        const isDisplay = el.classList.contains("math-display");
-        const replacement = document.createTextNode(
-          isDisplay ? `$$${tex}$$` : `$${tex}$`,
-        );
-        el.parentNode?.replaceChild(replacement, el);
-      }
-      return clone.textContent || "";
-    } catch {
-      return range.toString();
-    }
-  }
-
-  function handleSelection() {
-    const sel = window.getSelection();
-    if (!sel || !container) return;
-    if (!container.contains(sel.anchorNode)) return;
-
-    let range: Range;
-    try {
-      if (sel.rangeCount === 0) return;
-      range = sel.getRangeAt(0);
-    } catch {
-      return;
-    }
-
-    const startMath = getMathElement(range.startContainer);
-    const endMath = getMathElement(range.endContainer);
-
-    // If selection is collapsed, only trigger if user clicked a display math equation
-    if (sel.isCollapsed) {
-      if (!startMath || !startMath.classList.contains("math-display")) {
-        return;
-      }
-    }
-
-    // Case 1: Selection is inside or covers a single math element
-    if (startMath && (startMath === endMath || !endMath)) {
-      const mathEl = startMath;
-      const rawTex =
-        mathEl.dataset.tex ||
-        mathEl.querySelector("annotation[encoding='application/x-tex']")?.textContent?.trim() ||
-        (mathEl.dataset.katex ? "" : mathEl.textContent?.trim()) ||
-        "";
-
-      if (!rawTex) return;
-
-      const isDisplay = mathEl.classList.contains("math-display");
-      const selText = sel.toString().trim();
-
-      let approxRatio = 0;
-      let contextBefore = "";
-      let contextAfter = "";
-
-      try {
-        const rect = mathEl.getBoundingClientRect();
-        const containerRect = scrollContainer.getBoundingClientRect();
-        const scrollTop = scrollContainer.scrollTop;
-        const scrollHeight = scrollContainer.scrollHeight;
-        const offset = scrollTop + (rect.top - containerRect.top);
-        approxRatio = scrollHeight > 0 ? offset / scrollHeight : 0;
-
-        const block =
-          mathEl.closest<HTMLElement>(
-            "p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th",
-          ) || mathEl.parentElement;
-
-        if (block) {
-          const preRange = document.createRange();
-          preRange.setStart(block, 0);
-          preRange.setEndBefore(mathEl);
-          contextBefore = getRangeMarkdownText(preRange).slice(-40);
-
-          const postRange = document.createRange();
-          postRange.setStartAfter(mathEl);
-          postRange.setEnd(block, block.childNodes.length);
-          contextAfter = getRangeMarkdownText(postRange).slice(0, 40);
-        }
-      } catch {
-        // fallback
-      }
-
-      let mathSubtext: string | undefined;
-      if (selText && rawTex.includes(selText) && selText.length >= 2 && selText !== rawTex) {
-        mathSubtext = selText;
-      }
-
-      dispatch("previewSelect", {
-        text: rawTex,
-        isMath: true,
-        mathMode: isDisplay ? "display" : "inline",
-        mathSubtext,
-        contextBefore,
-        contextAfter,
-        approxRatio,
-      });
-      return;
-    }
-
-    // Case 2: General text selection (may span across text and math elements)
-    const text = getRangeMarkdownText(range).trim();
-    if (!text) return;
-
-    let approxRatio = 0;
-    let contextBefore = "";
-    let contextAfter = "";
-
-    try {
-      const rect = range.getBoundingClientRect();
-      const containerRect = scrollContainer.getBoundingClientRect();
-      const scrollTop = scrollContainer.scrollTop;
-      const scrollHeight = scrollContainer.scrollHeight;
-      const offset = scrollTop + (rect.top - containerRect.top);
-      approxRatio = scrollHeight > 0 ? offset / scrollHeight : 0;
-
-      const block =
-        range.startContainer.parentElement?.closest<HTMLElement>(
-          "p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th",
-        ) || range.startContainer.parentElement;
-
-      if (block) {
-        const preRange = range.cloneRange();
-        preRange.setStart(block, 0);
-        preRange.setEnd(range.startContainer, range.startOffset);
-        contextBefore = getRangeMarkdownText(preRange).slice(-40);
-
-        const postRange = range.cloneRange();
-        postRange.setStart(range.endContainer, range.endOffset);
-        postRange.setEnd(block, block.childNodes.length);
-        contextAfter = getRangeMarkdownText(postRange).slice(0, 40);
-      }
-    } catch {
-      // fallback
-    }
-
-    dispatch("previewSelect", {
-      text,
-      contextBefore,
-      contextAfter,
-      approxRatio,
-    });
-  }
-
   onDestroy(() => {
     if (debounceTimeout) clearTimeout(debounceTimeout);
     if (queueRaf !== null) cancelAnimationFrame(queueRaf);
@@ -419,8 +306,6 @@
 <div
   bind:this={scrollContainer}
   on:scroll={onScroll}
-  on:mouseup={handleSelection}
-  on:keyup={handleSelection}
   class="preview-container"
   class:centered
 >

@@ -6,6 +6,8 @@ mod commands;
 mod config;
 mod omarchy;
 
+use tauri::{Emitter, Manager};
+
 fn main() {
     #[cfg(target_os = "linux")]
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
@@ -18,9 +20,17 @@ fn main() {
             crate::config::start_config_watcher(app.handle().clone());
             Ok(())
         })
-        .manage(crate::commands::AppState {
-            current_path: std::sync::Mutex::new(None),
-            prefs: std::sync::Mutex::new(initial_prefs),
+        .manage(crate::commands::AppState::new(initial_prefs))
+        .on_window_event(|window, event| {
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                // Let the frontend check for unsaved changes first. If it never answers and
+                // the user asks to close again, the second request goes through.
+                let state = window.state::<crate::commands::AppState>();
+                if !state.close_requested.swap(true, std::sync::atomic::Ordering::SeqCst) {
+                    api.prevent_close();
+                    let _ = window.emit("close-requested", ());
+                }
+            }
         })
         .invoke_handler(tauri::generate_handler!(
             crate::commands::open_file,
@@ -32,7 +42,10 @@ fn main() {
             crate::commands::get_prefs,
             crate::commands::save_prefs,
             crate::commands::get_omarchy_theme,
-            crate::commands::render_markdown
+            crate::commands::render_markdown,
+            crate::commands::ask_unsaved,
+            crate::commands::exit_app,
+            crate::commands::cancel_close
         ))
         .run(tauri::generate_context!())
         .expect("error while running Cedilha application");

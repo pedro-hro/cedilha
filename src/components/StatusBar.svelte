@@ -4,6 +4,7 @@
   export let wordCount = 0;
   export let charCount = 0;
   export let lineCount = 0;
+  export let notice = "";
 
   function basename(p: string): string {
     return p.split(/[/\\]/).pop() || p;
@@ -15,6 +16,7 @@
   $: readingTime = wordCount === 0 ? "—" : `${minutes} min read`;
 
   $: statusSegments = [
+    ...(notice ? [{ label: notice, cls: "error" }] : []),
     { label: path ? basename(path) : "new document", cls: "path" },
     { label: dirty ? "● unsaved" : "✓ saved", cls: dirty ? "dirty" : "clean" },
     { label: `${wordCount.toLocaleString()} words` },
@@ -75,6 +77,10 @@
 
   .clean {
     color: var(--success);
+  }
+
+  .error {
+    color: var(--danger);
   }
 
   .muted {

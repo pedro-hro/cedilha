@@ -12,6 +12,8 @@ export interface Prefs {
   line_numbers?: boolean;
   font_family?: string;
   editor_max_width?: number;
+  /** Keybinding overrides: action id -> key combos. See lib/keybindings.ts. */
+  keybindings?: Record<string, string[]>;
 }
 
 export interface LoadResult {
@@ -28,8 +30,23 @@ export function readDocument(path: string): Promise<string> {
   return invoke("read_document", { path });
 }
 
-export function saveDocument(path: string, content: string): Promise<void> {
-  return invoke("save_document", { path, content });
+/** `force` overwrites even if another program changed the file since we last touched it. */
+export function saveDocument(path: string, content: string, force = false): Promise<void> {
+  return invoke("save_document", { path, content, force });
+}
+
+export type UnsavedChoice = "save" | "discard" | "cancel";
+
+export function askUnsaved(name: string): Promise<UnsavedChoice> {
+  return invoke("ask_unsaved", { name });
+}
+
+export function exitApp(): Promise<void> {
+  return invoke("exit_app");
+}
+
+export function cancelClose(): Promise<void> {
+  return invoke("cancel_close");
 }
 
 export function saveAsFile(content: string): Promise<string | null> {

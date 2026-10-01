@@ -1,5 +1,13 @@
 <script lang="ts">
   import type { Prefs, OmarchyTheme } from "../lib/tauri";
+  import {
+    ACTIONS,
+    resolveBindings,
+    comboFromEvent,
+    comboId,
+    comboParts,
+    type ActionId,
+  } from "../lib/keybindings";
 
   export let open = false;
   export let prefs: Prefs = {
@@ -7,6 +15,7 @@
     font_size: 15,
     tab_size: 2,
     typewriter: true,
+    line_numbers: true,
   };
   export let omarchyTheme: OmarchyTheme | null = null;
 
@@ -25,6 +34,66 @@
 
   const fontSizes = [12, 13, 14, 15, 16, 17, 18, 20, 22, 24];
   const tabSizes = [1, 2, 3, 4];
+
+  const widths = [680, 800, 900, 1040, 1200, 1400];
+
+  // ----- keybindings -----
+  $: bindings = resolveBindings(prefs.keybindings);
+  let recording: ActionId | null = null;
+  let recordError = "";
+
+  const sameCombos = (a: string[], b: string[]) =>
+    a.length === b.length && a.every((c, i) => comboId(c) === comboId(b[i]));
+
+  function setBinding(id: ActionId, combos: string[] | null) {
+    const next = { ...(prefs.keybindings ?? {}) };
+    const def = ACTIONS.find((a) => a.id === id)!.defaults;
+    if (combos === null || sameCombos(combos, def)) delete next[id];
+    else next[id] = combos;
+    prefs.keybindings = next;
+  }
+
+  function recordKey(e: KeyboardEvent) {
+    // Capture everything while recording so the press doesn't also trigger the shortcut.
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (e.key === "Escape") {
+      stopRecording();
+      return;
+    }
+    const combo = comboFromEvent(e);
+    if (!combo) {
+      if (!["Control", "Shift", "Alt", "Meta"].includes(e.key)) {
+        recordError = "Use Ctrl or Alt with a key (function keys work alone).";
+      }
+      return;
+    }
+    const id = recording!;
+    const wanted = comboId(combo);
+    const clash = ACTIONS.find(
+      (a) => a.id !== id && bindings[a.id].some((c) => comboId(c) === wanted),
+    );
+    if (clash) {
+      recordError = `${combo} is already used by "${clash.label}".`;
+      return;
+    }
+    setBinding(id, [combo]);
+    stopRecording();
+  }
+
+  function startRecording(id: ActionId) {
+    stopRecording();
+    recording = id;
+    recordError = "";
+    window.addEventListener("keydown", recordKey, true);
+  }
+
+  function stopRecording() {
+    window.removeEventListener("keydown", recordKey, true);
+    recording = null;
+  }
+
+  $: if (!open && recording) stopRecording();
 
   function handleScrimClick(e: MouseEvent) {
     if (e.target === e.currentTarget) {
@@ -78,6 +147,26 @@
         </select>
       </div>
 
+      <div class="row">
+        <label for="fontfamily">Font family</label>
+        <input
+          id="fontfamily"
+          type="text"
+          placeholder="JetBrains Mono"
+          value={prefs.font_family ?? ""}
+          onchange={(e) => (prefs.font_family = e.currentTarget.value.trim() || "JetBrains Mono")}
+        />
+      </div>
+
+      <div class="row">
+        <label for="width">Text column width ({prefs.editor_max_width ?? 1040}px)</label>
+        <select id="width" bind:value={prefs.editor_max_width}>
+          {#each widths as w}
+            <option value={w}>{w}px</option>
+          {/each}
+        </select>
+      </div>
+
       <div class="row toggle">
         <span>
           <strong>Typewriter scrolling</strong>
@@ -97,42 +186,57 @@
       <div class="shortcuts-section">
         <div class="shortcuts-header">
           <h3>Keybindings</h3>
-          <span class="shortcuts-subtitle">Quick reference</span>
+          <span class="shortcuts-subtitle">Click a shortcut, then press the new keys</span>
         </div>
 
-        <div class="shortcuts-grid">
-          <div class="shortcut-item">
-            <span class="desc">Cycle view mode</span>
-            <span class="keys"><kbd>Ctrl</kbd><kbd>P</kbd></span>
-          </div>
-          <div class="shortcut-item">
-            <span class="desc">Edit / Split / Preview</span>
-            <span class="keys"><kbd>Ctrl</kbd><kbd>1 / 2 / 3</kbd></span>
-          </div>
-          <div class="shortcut-item">
-            <span class="desc">New document</span>
-            <span class="keys"><kbd>Ctrl</kbd><kbd>N</kbd></span>
-          </div>
-          <div class="shortcut-item">
-            <span class="desc">Open document</span>
-            <span class="keys"><kbd>Ctrl</kbd><kbd>O</kbd></span>
-          </div>
-          <div class="shortcut-item">
-            <span class="desc">Save document</span>
-            <span class="keys"><kbd>Ctrl</kbd><kbd>S</kbd></span>
-          </div>
-          <div class="shortcut-item">
-            <span class="desc">Save As…</span>
-            <span class="keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>S</kbd></span>
-          </div>
-          <div class="shortcut-item">
-            <span class="desc">Settings</span>
-            <span class="keys"><kbd>Ctrl</kbd><kbd>,</kbd></span>
-          </div>
-          <div class="shortcut-item">
-            <span class="desc">Close dialog</span>
-            <span class="keys"><kbd>Esc</kbd></span>
-          </div>
+        <div class="bind-list">
+          {#each ACTIONS as action (action.id)}
+            {@const custom = !!prefs.keybindings?.[action.id]}
+            <div class="bind-row">
+              <span class="desc">{action.label}</span>
+              <span class="bind-controls">
+                <button
+                  class="keys-btn"
+                  class:recording={recording === action.id}
+                  class:custom
+                  onclick={() => (recording === action.id ? stopRecording() : startRecording(action.id))}
+                  title="Change shortcut"
+                >
+                  {#if recording === action.id}
+                    <span class="press">Press keys… (Esc cancels)</span>
+                  {:else}
+                    {#each bindings[action.id] as combo, i}
+                      {#if i > 0}<span class="or">or</span>{/if}
+                      <span class="keys">
+                        {#each comboParts(combo) as part}<kbd>{part}</kbd>{/each}
+                      </span>
+                    {/each}
+                  {/if}
+                </button>
+                <button
+                  class="reset"
+                  aria-label="Reset to default"
+                  title="Reset to default"
+                  disabled={!custom}
+                  onclick={() => setBinding(action.id, null)}
+                >
+                  ↺
+                </button>
+              </span>
+            </div>
+          {/each}
+        </div>
+
+        {#if recordError}
+          <div class="bind-error" role="alert">{recordError}</div>
+        {/if}
+
+        <div class="fixed-keys">
+          <span class="fixed-title">Fixed</span>
+          <span><kbd>Enter</kbd> / <kbd>Shift</kbd><kbd>Enter</kbd> next / previous match in the search box ·
+            <kbd>Esc</kbd> close search or this dialog ·
+            <kbd>Ctrl</kbd><kbd>D</kbd> select next occurrence ·
+            <kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>G</kbd> go to line</span>
         </div>
 
         <div class="math-hint">
@@ -262,26 +366,110 @@
     color: var(--fg-dim);
   }
 
-  .shortcuts-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px 12px;
+  .bind-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
   }
 
-  .shortcut-item {
+  .bind-row {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 6px 8px;
+    gap: 10px;
+    padding: 4px 8px;
     background: var(--bg-surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    gap: 8px;
   }
 
-  .shortcut-item .desc {
+  .bind-row .desc {
     color: var(--fg);
     font-size: 12px;
+  }
+
+  .bind-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .keys-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 90px;
+    justify-content: center;
+    padding: 3px 8px;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+  }
+
+  .keys-btn:hover {
+    border-color: var(--border);
+  }
+
+  .keys-btn.custom kbd {
+    border-color: var(--accent);
+  }
+
+  .keys-btn.recording {
+    border-color: var(--accent);
+    background: var(--bg-elev);
+  }
+
+  .press {
+    font-size: 11px;
+    color: var(--accent);
+  }
+
+  .or {
+    font-size: 10px;
+    color: var(--fg-dim);
+  }
+
+  .reset {
+    background: transparent;
+    border: none;
+    color: var(--fg-dim);
+    cursor: pointer;
+    padding: 2px 6px;
+    font-size: 14px;
+  }
+
+  .reset:hover:not(:disabled) {
+    color: var(--accent);
+  }
+
+  .reset:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
+
+  .bind-error {
+    margin-top: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--danger);
+    border: 1px solid var(--danger);
+    border-radius: var(--radius);
+  }
+
+  .fixed-keys {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--fg-dim);
+    line-height: 1.8;
+  }
+
+  .fixed-title {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 9px;
+    margin-right: 6px;
   }
 
   .keys {
@@ -371,9 +559,12 @@
     border-radius: 3px;
   }
 
-  @media (max-width: 480px) {
-    .shortcuts-grid {
-      grid-template-columns: 1fr;
-    }
+  .row input[type="text"] {
+    min-width: 150px;
+    background: var(--bg-surface);
+    color: var(--fg);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 5px 8px;
   }
 </style>

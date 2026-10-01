@@ -4,6 +4,7 @@
   import Editor from "./components/Editor.svelte";
   import Preview from "./components/Preview.svelte";
   import StatusBar from "./components/StatusBar.svelte";
+  import { resolveBindings, parseCombo, matches, type ActionId } from "./lib/keybindings";
   import Settings from "./components/Settings.svelte";
   import * as api from "./lib/tauri";
   import type { Prefs, OmarchyTheme } from "./lib/tauri";
@@ -20,7 +21,7 @@
     font_size: 15,
     tab_size: 2,
     typewriter: true,
-    line_numbers: false,
+    line_numbers: true,
   };
   let omarchyTheme: OmarchyTheme | null = null;
   let settingsOpen = false;
@@ -28,14 +29,29 @@
   let preview: InstanceType<typeof Preview>;
   let stats = { words: 0, chars: 0, lines: 1 };
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
-  let scrollSyncRaf: number | null = null;
+  // Two-way scroll sync. Whichever pane the user is scrolling owns the sync; scroll events
+  // caused by the other pane being moved programmatically are ignored until things settle.
+  let syncOwner: "editor" | "preview" | null = null;
+  let syncTimer: ReturnType<typeof setTimeout> | null = null;
+  let syncRaf: number | null = null;
 
-  function onEditorScroll(e: CustomEvent<{ ratio: number }>) {
-    if (viewMode !== "split" || !preview) return;
-    if (scrollSyncRaf !== null) cancelAnimationFrame(scrollSyncRaf);
-    scrollSyncRaf = requestAnimationFrame(() => {
-      scrollSyncRaf = null;
-      preview?.syncScrollRatio(e.detail.ratio);
+  function syncFrom(source: "editor" | "preview") {
+    if (viewMode !== "split" || !editor || !preview) return;
+    if (syncTimer) clearTimeout(syncTimer);
+    syncTimer = setTimeout(() => {
+      syncOwner = null;
+      syncTimer = null;
+    }, 150);
+    if (syncOwner && syncOwner !== source) return;
+    syncOwner = source;
+    if (syncRaf !== null) cancelAnimationFrame(syncRaf);
+    syncRaf = requestAnimationFrame(() => {
+      syncRaf = null;
+      if (source === "editor") {
+        preview?.scrollToAnchor(editor.getScrollAnchor());
+      } else {
+        editor?.scrollToAnchor(preview.getScrollAnchor());
+      }
     });
   }
 
@@ -97,6 +113,21 @@
     window.addEventListener("focus", onFocus);
 
     let unlistenConfig: UnlistenFn | undefined;
+    let unlistenClose: UnlistenFn | undefined;
+
+    listen("close-requested", async () => {
+      try {
+        if (await confirmDiscard()) {
+          await api.exitApp();
+        } else {
+          await api.cancelClose();
+        }
+      } catch {
+        api.cancelClose().catch(() => {});
+      }
+    }).then((fn) => {
+      unlistenClose = fn;
+    }).catch(() => {});
 
     listen<Prefs>("config-changed", (event) => {
       if (event.payload) {
@@ -120,11 +151,21 @@
       window.removeEventListener("focus", onFocus);
       if (unlisten) unlisten();
       if (unlistenConfig) unlistenConfig();
+      if (unlistenClose) unlistenClose();
     };
   });
 
+  // JSON of the prefs last loaded from / written to the backend. Empty until the first load,
+  // so the built-in defaults above can never be saved over the user's config.
+  let prefsSynced = "";
+
   function applyPrefs(p: Prefs) {
     prefs = { ...p };
+    prefsSynced = JSON.stringify(prefs);
+    applyPrefsStyles(p);
+  }
+
+  function applyPrefsStyles(p: Prefs) {
     document.documentElement.setAttribute("data-theme", p.theme);
     document.documentElement.style.setProperty("--editor-font-size", `${p.font_size}px`);
     document.documentElement.style.setProperty("--editor-tab-size", `${p.tab_size}`);
@@ -140,9 +181,13 @@
   }
 
   function loadInto(doc: string, p: string | null) {
+    // CodeMirror normalizes line endings to \n; keep the rendered text identical so
+    // preview source offsets line up with the editor document.
+    doc = doc.replace(/\r\n?/g, "\n");
     content = doc;
     path = p;
     dirty = false;
+    autosavePaused = false;
     scheduleComputeStats(doc, true);
     if (editor) {
       editor.setContent(doc);
@@ -150,19 +195,48 @@
   }
 
   // ----- file operations -----
+  let notice = "";
+  let noticeTimer: ReturnType<typeof setTimeout> | null = null;
+  let autosavePaused = false;
+
+  function showNotice(msg: string, ms = 8000) {
+    notice = msg;
+    if (noticeTimer) clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => (notice = ""), ms);
+  }
+
+  function errorText(e: unknown): string {
+    return typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
+  }
+
+  // Resolves true when it is fine to replace the current document.
+  async function confirmDiscard(): Promise<boolean> {
+    if (!dirty) return true;
+    const name = path ? path.split(/[/\\]/).pop() || path : "Untitled";
+    const choice = await api.askUnsaved(name);
+    if (choice === "save") {
+      await save();
+      return !dirty;
+    }
+    return choice === "discard";
+  }
+
   async function openFile() {
     try {
+      if (!(await confirmDiscard())) return;
       const res = await api.openFile();
       if (res.path) {
         loadInto(res.content, res.path);
       }
     } catch (e) {
       console.error("Failed to open file:", e);
+      showNotice(`Open failed: ${errorText(e)}`);
     }
   }
 
   async function newDoc() {
     try {
+      if (!(await confirmDiscard())) return;
       const doc = await api.newDocument();
       loadInto(doc, null);
     } catch {
@@ -171,31 +245,39 @@
   }
 
   async function save() {
+    const snapshot = content;
     try {
       if (!path) {
-        const p = await api.saveAsFile(content);
+        const p = await api.saveAsFile(snapshot);
         if (p) {
           path = p;
-          dirty = false;
+          dirty = content !== snapshot;
+          autosavePaused = false;
         }
         return;
       }
-      await api.saveDocument(path, content);
-      dirty = false;
+      await api.saveDocument(path, snapshot, true);
+      // Edits typed while the write was in flight are not saved yet.
+      dirty = content !== snapshot;
+      autosavePaused = false;
     } catch (e) {
       console.error("Failed to save:", e);
+      showNotice(`Save failed: ${errorText(e)}`);
     }
   }
 
   async function saveAs() {
+    const snapshot = content;
     try {
-      const p = await api.saveAsFile(content);
+      const p = await api.saveAsFile(snapshot);
       if (p) {
         path = p;
-        dirty = false;
+        dirty = content !== snapshot;
+        autosavePaused = false;
       }
     } catch (e) {
       console.error("Failed to save as:", e);
+      showNotice(`Save failed: ${errorText(e)}`);
     }
   }
 
@@ -242,56 +324,73 @@
   }
 
   function queueAutosave() {
-    if (!dirty || !path) return;
+    if (!dirty || !path || autosavePaused) return;
     if (saveTimer) clearTimeout(saveTimer);
-    saveTimer = setTimeout(() => {
-      if (path && dirty) {
-        api.saveDocument(path, content).then(() => (dirty = false)).catch(() => {});
+    saveTimer = setTimeout(async () => {
+      if (!path || !dirty || autosavePaused) return;
+      const snapshot = content;
+      try {
+        await api.saveDocument(path, snapshot, false);
+        dirty = content !== snapshot;
+      } catch (e) {
+        const msg = errorText(e);
+        if (msg.startsWith("CONFLICT")) {
+          autosavePaused = true;
+          showNotice(`File changed on disk: autosave paused (${hint("save")} overwrites it)`, 15000);
+        } else {
+          showNotice(`Autosave failed: ${msg}`);
+        }
       }
     }, 1500);
   }
 
   // ----- keyboard shortcuts -----
-  function onKeydown(e: KeyboardEvent) {
-    const mod = e.ctrlKey || e.metaKey;
-    if (mod && e.key.toLowerCase() === "s") {
-      e.preventDefault();
-      if (e.shiftKey) {
-        saveAs();
-      } else {
-        save();
-      }
-    } else if (mod && e.key.toLowerCase() === "o") {
-      e.preventDefault();
-      openFile();
-    } else if (mod && e.key.toLowerCase() === "n") {
-      e.preventDefault();
-      newDoc();
-    } else if (mod && e.key === "1") {
-      e.preventDefault();
-      viewMode = "edit";
-    } else if (mod && e.key === "2") {
-      e.preventDefault();
-      viewMode = "split";
-    } else if (mod && e.key === "3") {
-      e.preventDefault();
-      viewMode = "preview";
-    } else if (mod && e.key.toLowerCase() === "p" && !e.shiftKey) {
-      e.preventDefault();
+  $: bindings = resolveBindings(prefs.keybindings);
+
+  const keyActions: Partial<Record<ActionId, () => void>> = {
+    save: () => void save(),
+    save_as: () => void saveAs(),
+    open: () => void openFile(),
+    new: () => void newDoc(),
+    find: () => {
+      if (viewMode === "preview") viewMode = "split";
+      editor?.openSearch();
+    },
+    cycle_view: () => {
       viewMode = viewMode === "edit" ? "split" : viewMode === "split" ? "preview" : "edit";
-    } else if (mod && (e.key === "," || (e.key === "p" && e.shiftKey))) {
-      e.preventDefault();
+    },
+    settings: () => {
       settingsOpen = !settingsOpen;
+    },
+  };
+
+  function onKeydown(e: KeyboardEvent) {
+    if (e.defaultPrevented) return;
+    for (const id of Object.keys(keyActions) as ActionId[]) {
+      const hit = bindings[id].some((c) => {
+        const combo = parseCombo(c);
+        return combo !== null && matches(e, combo);
+      });
+      if (hit) {
+        e.preventDefault();
+        keyActions[id]!();
+        return;
+      }
     }
   }
 
+  // Short label for tooltips, e.g. "Ctrl+Shift+S" (first binding of an action).
+  $: hint = (id: ActionId) => bindings[id][0];
+
   // Persist preference updates
   function onPrefsUpdated() {
-    applyPrefs(prefs);
+    prefsSynced = JSON.stringify(prefs);
+    applyPrefsStyles(prefs);
     api.savePrefs(prefs).catch(() => {});
   }
 
-  $: if (prefs) {
+  // Only genuine changes (Settings panel) are persisted, never the initial defaults.
+  $: if (prefsSynced && JSON.stringify(prefs) !== prefsSynced) {
     onPrefsUpdated();
   }
 </script>
@@ -307,9 +406,9 @@
       </div>
 
       <nav class="doc-actions">
-        <button onclick={newDoc} title="New Document (Ctrl+N)">New</button>
-        <button onclick={openFile} title="Open Document (Ctrl+O)">Open</button>
-        <button class="save-btn" class:dirty onclick={save} title="Save (Ctrl+S)">
+        <button onclick={newDoc} title="New Document ({hint('new')})">New</button>
+        <button onclick={openFile} title="Open Document ({hint('open')})">Open</button>
+        <button class="save-btn" class:dirty onclick={save} title="Save ({hint('save')})">
           Save{#if dirty}<span class="dirty-dot">●</span>{/if}
         </button>
       </nav>
@@ -321,21 +420,21 @@
         <button
           class:active={viewMode === "edit"}
           onclick={() => (viewMode = "edit")}
-          title="Code only (Ctrl+1)"
+          title="Code only"
         >
           Edit
         </button>
         <button
           class:active={viewMode === "split"}
           onclick={() => (viewMode = "split")}
-          title="Side-by-side split (Ctrl+2)"
+          title="Side-by-side split"
         >
           Split
         </button>
         <button
           class:active={viewMode === "preview"}
           onclick={() => (viewMode = "preview")}
-          title="Rendered preview only (Ctrl+3)"
+          title="Rendered preview only ({hint('cycle_view')} cycles views)"
         >
           Preview
         </button>
@@ -348,10 +447,10 @@
         <button
           class="settings-btn"
           onclick={() => (settingsOpen = !settingsOpen)}
-          title="Settings (Ctrl+,)"
+          title="Settings ({hint('settings')})"
         >
           <span>Settings</span>
-          <kbd class="key-badge">Ctrl ,</kbd>
+          <kbd class="key-badge">{hint('settings').replace(/\+/g, " ")}</kbd>
         </button>
       </div>
     </div>
@@ -370,8 +469,10 @@
         tabSize={prefs.tab_size}
         typewriter={prefs.typewriter}
         lineNumbers={prefs.line_numbers}
+        findNextKeys={bindings.find_next}
+        findPrevKeys={bindings.find_prev}
         on:change={handleEditorChange}
-        on:scroll={onEditorScroll}
+        on:scroll={() => syncFrom("editor")}
       />
     </div>
 
@@ -389,11 +490,7 @@
         {content}
         centered={viewMode === "preview"}
         active={viewMode !== "edit"}
-        on:previewSelect={(e) => {
-          if (viewMode === "split" && editor) {
-            editor.scrollToText(e.detail);
-          }
-        }}
+        on:scroll={() => syncFrom("preview")}
       />
     </div>
   </main>
@@ -404,6 +501,7 @@
     wordCount={stats.words}
     charCount={stats.chars}
     lineCount={stats.lines}
+    {notice}
   />
 
   <Settings bind:open={settingsOpen} bind:prefs={prefs} {omarchyTheme} />
