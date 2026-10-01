@@ -1,0 +1,12 @@
+[Desktop Entry]
+Type=Application
+Name=Cedilha
+GenericName=Markdown Editor
+Comment=Minimalist Markdown & LaTeX editor
+Exec=cedilha %F
+Icon=cedilha
+Terminal=false
+Categories=Office;TextEditor;
+Keywords=markdown;latex;math;editor;notes;
+MimeType=text/markdown;text/x-markdown;
+StartupWMClass=cedilha

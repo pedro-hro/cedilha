@@ -26,7 +26,7 @@ fn main() {
             *state.initial_file.lock().unwrap() = std::env::args()
                 .nth(1)
                 .filter(|a| !a.starts_with('-'))
-                .map(std::path::PathBuf::from);
+                .map(|a| crate::commands::path_from_arg(&a));
             state
         })
         .on_window_event(|window, event| {

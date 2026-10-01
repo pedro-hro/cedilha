@@ -154,6 +154,32 @@ pub async fn open_file(state: tauri::State<'_, AppState>) -> Result<LoadResult, 
     })
 }
 
+/// Turn a command-line argument into a path. Launchers may pass `file:///a%20b.md` URLs
+/// (desktop `%u`) instead of plain paths; decode those.
+pub fn path_from_arg(arg: &str) -> PathBuf {
+    let Some(rest) = arg.strip_prefix("file://") else {
+        return PathBuf::from(arg);
+    };
+    // Drop an optional host ("file://localhost/..."): the path starts at the next '/'.
+    let rest = if rest.starts_with('/') { rest } else { rest.find('/').map_or("", |i| &rest[i..]) };
+    let bytes = rest.as_bytes();
+    let mut out = Vec::with_capacity(bytes.len());
+    let mut i = 0;
+    while i < bytes.len() {
+        if bytes[i] == b'%' && i + 2 < bytes.len() {
+            let hex = |b: u8| (b as char).to_digit(16);
+            if let (Some(hi), Some(lo)) = (hex(bytes[i + 1]), hex(bytes[i + 2])) {
+                out.push((hi * 16 + lo) as u8);
+                i += 3;
+                continue;
+            }
+        }
+        out.push(bytes[i]);
+        i += 1;
+    }
+    PathBuf::from(String::from_utf8_lossy(&out).into_owned())
+}
+
 /// The file given on the command line, if any. A path typed on the command line counts
 /// as chosen by the user, so it joins the allowed set. Returns it only once.
 #[tauri::command]
@@ -519,6 +545,19 @@ mod tests {
             .collect();
         assert!(leftovers.is_empty());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn cli_arguments_accept_paths_and_file_urls() {
+        assert_eq!(path_from_arg("notes.md"), PathBuf::from("notes.md"));
+        assert_eq!(path_from_arg("/home/a/b c.md"), PathBuf::from("/home/a/b c.md"));
+        assert_eq!(path_from_arg("file:///home/a/b%20c.md"), PathBuf::from("/home/a/b c.md"));
+        assert_eq!(path_from_arg("file:///home/a/ação.md"), PathBuf::from("/home/a/ação.md"));
+        assert_eq!(path_from_arg("file:///home/a/a%C3%A7%C3%A3o.md"), PathBuf::from("/home/a/ação.md"));
+        assert_eq!(path_from_arg("file://localhost/tmp/x.md"), PathBuf::from("/tmp/x.md"));
+        assert_eq!(path_from_arg("file:///tmp/100%.md"), PathBuf::from("/tmp/100%.md"));
+        // a stray '%' before a multi-byte character must not panic
+        assert_eq!(path_from_arg("file:///tmp/%aç.md"), PathBuf::from("/tmp/%aç.md"));
     }
 
     #[test]
