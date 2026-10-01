@@ -7,14 +7,6 @@
   import Settings from "./components/Settings.svelte";
   import * as api from "./lib/tauri";
   import type { Prefs, OmarchyTheme } from "./lib/tauri";
-  import { getCurrentWindow } from "@tauri-apps/api/window";
-
-  let appWindow: ReturnType<typeof getCurrentWindow> | null = null;
-  try {
-    appWindow = getCurrentWindow();
-  } catch {
-    // Running in browser dev mode outside Tauri webview
-  }
 
   type ViewMode = "edit" | "split" | "preview";
 
@@ -244,19 +236,6 @@
   $: if (prefs) {
     onPrefsUpdated();
   }
-
-  // Window control helpers
-  function minimizeWindow() {
-    appWindow?.minimize();
-  }
-
-  function toggleMaximize() {
-    appWindow?.toggleMaximize();
-  }
-
-  function closeWindow() {
-    appWindow?.close();
-  }
 </script>
 
 <svelte:window on:keydown={onKeydown} />
@@ -305,21 +284,13 @@
       </div>
     </div>
 
-    <!-- Right: Preferences & Window Controls -->
+    <!-- Right: Settings -->
     <div class="toolbar-right" data-tauri-drag-region>
       <div class="util-actions">
         <button onclick={() => (settingsOpen = !settingsOpen)} title="Settings (Ctrl+,)">
           Settings
         </button>
       </div>
-
-      {#if appWindow}
-        <div class="window-controls">
-          <button class="win-btn" onclick={minimizeWindow} aria-label="Minimize">─</button>
-          <button class="win-btn" onclick={toggleMaximize} aria-label="Maximize">□</button>
-          <button class="win-btn close" onclick={closeWindow} aria-label="Close">✕</button>
-        </div>
-      {/if}
     </div>
   </header>
 
@@ -494,32 +465,6 @@
     background: var(--accent);
     color: var(--bg);
     font-weight: 700;
-  }
-
-  .window-controls {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    margin-left: 4px;
-  }
-
-  .win-btn {
-    background: transparent;
-    border: none;
-    padding: 4px 8px;
-    font-size: 11px;
-    color: var(--fg-dim);
-    border-radius: 4px;
-  }
-
-  .win-btn:hover {
-    background: var(--bg-surface);
-    color: var(--fg);
-  }
-
-  .win-btn.close:hover {
-    background: var(--danger);
-    color: var(--bg);
   }
 
   .workspace {

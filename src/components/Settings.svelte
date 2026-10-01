@@ -93,6 +93,53 @@
         </span>
         <input type="checkbox" bind:checked={prefs.line_numbers} />
       </div>
+
+      <div class="shortcuts-section">
+        <div class="shortcuts-header">
+          <h3>Keybindings</h3>
+          <span class="shortcuts-subtitle">Quick reference</span>
+        </div>
+
+        <div class="shortcuts-grid">
+          <div class="shortcut-item">
+            <span class="desc">Cycle view mode</span>
+            <span class="keys"><kbd>Ctrl</kbd><kbd>P</kbd></span>
+          </div>
+          <div class="shortcut-item">
+            <span class="desc">Edit / Split / Preview</span>
+            <span class="keys"><kbd>Ctrl</kbd><kbd>1 / 2 / 3</kbd></span>
+          </div>
+          <div class="shortcut-item">
+            <span class="desc">New document</span>
+            <span class="keys"><kbd>Ctrl</kbd><kbd>N</kbd></span>
+          </div>
+          <div class="shortcut-item">
+            <span class="desc">Open document</span>
+            <span class="keys"><kbd>Ctrl</kbd><kbd>O</kbd></span>
+          </div>
+          <div class="shortcut-item">
+            <span class="desc">Save document</span>
+            <span class="keys"><kbd>Ctrl</kbd><kbd>S</kbd></span>
+          </div>
+          <div class="shortcut-item">
+            <span class="desc">Save As…</span>
+            <span class="keys"><kbd>Ctrl</kbd><kbd>Shift</kbd><kbd>S</kbd></span>
+          </div>
+          <div class="shortcut-item">
+            <span class="desc">Settings</span>
+            <span class="keys"><kbd>Ctrl</kbd><kbd>,</kbd></span>
+          </div>
+          <div class="shortcut-item">
+            <span class="desc">Close dialog</span>
+            <span class="keys"><kbd>Esc</kbd></span>
+          </div>
+        </div>
+
+        <div class="math-hint">
+          <span class="math-badge">LaTeX</span>
+          <span><code>$E=mc^2$</code> inline · <code>$$\int...$$</code> block rendered in Split and Preview</span>
+        </div>
+      </div>
     </div>
   </div>
 {/if}
@@ -110,7 +157,9 @@
   }
 
   .panel {
-    width: min(460px, 90vw);
+    width: min(520px, 92vw);
+    max-height: 88vh;
+    overflow-y: auto;
     background: var(--bg-elev);
     border: 1px solid var(--border);
     border-radius: 10px;
@@ -179,5 +228,113 @@
     height: 18px;
     accent-color: var(--accent);
     cursor: pointer;
+  }
+
+  .shortcuts-section {
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .shortcuts-header {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .shortcuts-header h3 {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+  }
+
+  .shortcuts-subtitle {
+    font-size: 11px;
+    color: var(--fg-dim);
+  }
+
+  .shortcuts-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px 12px;
+  }
+
+  .shortcut-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 8px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    gap: 8px;
+  }
+
+  .shortcut-item .desc {
+    color: var(--fg);
+    font-size: 12px;
+  }
+
+  .keys {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+  }
+
+  kbd {
+    display: inline-block;
+    padding: 2px 5px;
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1.2;
+    color: var(--fg);
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    box-shadow: 0 1px 0 var(--border);
+  }
+
+  .math-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 14px;
+    padding: 6px 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 11px;
+    color: var(--fg-dim);
+    line-height: 1.4;
+  }
+
+  .math-badge {
+    background: var(--accent);
+    color: var(--bg);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .math-hint code {
+    font-family: var(--font-mono);
+    color: var(--fg);
+    background: var(--bg-elev);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  @media (max-width: 480px) {
+    .shortcuts-grid {
+      grid-template-columns: 1fr;
+    }
   }
 </style>
