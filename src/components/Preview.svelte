@@ -111,7 +111,7 @@
         },
         {
           root: scrollContainer || null,
-          rootMargin: "350px 0px 350px 0px",
+          rootMargin: "1000px 0px 1000px 0px",
         },
       );
 
@@ -212,23 +212,8 @@
     margin: 0;
     padding: 0;
     font-family: var(--font-mono);
-    line-height: 1.7;
+    line-height: 1.6;
     font-size: var(--editor-font-size, 15px);
-  }
-
-  /* Browser layout containment: off-screen blocks skip style/layout/paint entirely */
-  .markdown-body :global(p),
-  .markdown-body :global(blockquote),
-  .markdown-body :global(table),
-  .markdown-body :global(pre),
-  .markdown-body :global(ul),
-  .markdown-body :global(ol),
-  .markdown-body :global(h1),
-  .markdown-body :global(h2),
-  .markdown-body :global(h3),
-  .markdown-body :global(h4) {
-    content-visibility: auto;
-    contain-intrinsic-size: auto 35px;
   }
 
   .preview-container.centered .markdown-body {

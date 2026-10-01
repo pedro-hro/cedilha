@@ -124,7 +124,7 @@
     overflow-y: auto;
     font-family: var(--font-mono);
     font-size: var(--editor-font-size, 15px);
-    line-height: 1.65;
+    line-height: 1.6;
     padding: 24px 32px 240px 24px;
     display: flex;
     align-items: flex-start;

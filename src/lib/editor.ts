@@ -32,15 +32,15 @@ const baseTheme = EditorView.theme({
   },
   ".cm-scroller": {
     fontFamily: "var(--font-mono)",
-    lineHeight: "1.65",
+    lineHeight: "1.6",
   },
   ".cm-content": {
     caretColor: "var(--accent)",
     fontFamily: "var(--font-mono)",
-    lineHeight: "1.65",
+    lineHeight: "1.6",
   },
   ".cm-line": {
-    lineHeight: "1.65",
+    lineHeight: "1.6",
     padding: "0 4px",
   },
   "&.cm-focused .cm-cursor": {
