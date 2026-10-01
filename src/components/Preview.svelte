@@ -14,7 +14,6 @@
       contextAfter: string;
       approxRatio: number;
     };
-    scroll: { ratio: number };
   }>();
 
   let renderedHtml = "";
@@ -63,16 +62,10 @@
   }
 
   let isScrolling = false;
-  let isSyncing = false;
   let scrollSettleTimer: ReturnType<typeof setTimeout> | null = null;
 
   function onScroll() {
     isScrolling = true;
-    if (!isSyncing && scrollContainer) {
-      const max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
-      const ratio = max > 0 ? scrollContainer.scrollTop / max : 0;
-      dispatch("scroll", { ratio });
-    }
     if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
     scrollSettleTimer = setTimeout(() => {
       isScrolling = false;
@@ -86,11 +79,7 @@
     if (!scrollContainer) return;
     const max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
     if (max > 0) {
-      isSyncing = true;
       scrollContainer.scrollTop = ratio * max;
-      requestAnimationFrame(() => {
-        isSyncing = false;
-      });
     }
   }
 

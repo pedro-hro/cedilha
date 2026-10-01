@@ -24,7 +24,6 @@
 
   let view: EditorView | null = null;
   let host: HTMLDivElement;
-  let isSyncing = false;
 
   function buildListener() {
     return EditorView.updateListener.of((update) => {
@@ -52,7 +51,7 @@
     });
 
     const onScroll = () => {
-      if (!view || isSyncing) return;
+      if (!view) return;
       const scroller = view.scrollDOM;
       const max = scroller.scrollHeight - scroller.clientHeight;
       const ratio = max > 0 ? scroller.scrollTop / max : 0;
@@ -203,19 +202,6 @@
         effects: [EditorView.scrollIntoView(match.from, { y: "center" })],
       });
       view.focus();
-    }
-  }
-
-  export function syncScrollRatio(ratio: number) {
-    if (!view) return;
-    const scroller = view.scrollDOM;
-    const max = scroller.scrollHeight - scroller.clientHeight;
-    if (max > 0) {
-      isSyncing = true;
-      scroller.scrollTop = ratio * max;
-      requestAnimationFrame(() => {
-        isSyncing = false;
-      });
     }
   }
 </script>

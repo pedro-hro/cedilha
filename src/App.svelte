@@ -26,25 +26,16 @@
   let settingsOpen = false;
   let editor: InstanceType<typeof Editor>;
   let preview: InstanceType<typeof Preview>;
-  let isSyncingScroll = false;
   let stats = { words: 0, chars: 0, lines: 1 };
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let scrollSyncRaf: number | null = null;
 
   function onEditorScroll(e: CustomEvent<{ ratio: number }>) {
-    if (viewMode !== "split" || isSyncingScroll || !preview) return;
-    isSyncingScroll = true;
-    preview.syncScrollRatio(e.detail.ratio);
-    requestAnimationFrame(() => {
-      isSyncingScroll = false;
-    });
-  }
-
-  function onPreviewScroll(e: CustomEvent<{ ratio: number }>) {
-    if (viewMode !== "split" || isSyncingScroll || !editor) return;
-    isSyncingScroll = true;
-    editor.syncScrollRatio(e.detail.ratio);
-    requestAnimationFrame(() => {
-      isSyncingScroll = false;
+    if (viewMode !== "split" || !preview) return;
+    if (scrollSyncRaf !== null) cancelAnimationFrame(scrollSyncRaf);
+    scrollSyncRaf = requestAnimationFrame(() => {
+      scrollSyncRaf = null;
+      preview?.syncScrollRatio(e.detail.ratio);
     });
   }
 
@@ -403,7 +394,6 @@
             editor.scrollToText(e.detail);
           }
         }}
-        on:scroll={onPreviewScroll}
       />
     </div>
   </main>
