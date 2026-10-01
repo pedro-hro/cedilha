@@ -107,13 +107,13 @@
     overflow: hidden;
     position: relative;
     display: flex;
-    justify-content: center;
+    justify-content: flex-start;
   }
 
   .editor-host :global(.cm-editor) {
     height: 100%;
     width: 100%;
-    max-width: var(--editor-max-width, 780px);
+    max-width: 100%;
     display: flex;
     flex-direction: column;
   }
@@ -121,18 +121,21 @@
   .editor-host :global(.cm-scroller) {
     flex: 1 1 auto;
     height: 100%;
+    width: 100%;
     overflow-y: auto;
     font-family: var(--font-mono);
     font-size: var(--editor-font-size, 15px);
     line-height: 1.65;
-    padding: 36px 16px 240px 16px;
+    padding: 24px 32px 240px 24px;
     display: flex;
     align-items: flex-start;
+    box-sizing: border-box;
   }
 
   .editor-host :global(.cm-content) {
     flex: 1 1 auto;
     width: 100%;
+    max-width: var(--editor-max-width, 1040px);
     padding: 0;
     margin: 0;
     box-sizing: border-box;

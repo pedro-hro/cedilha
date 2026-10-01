@@ -53,10 +53,18 @@ const baseTheme = EditorView.theme({
   ".cm-gutters": {
     backgroundColor: "transparent",
     color: "var(--fg-dim)",
-    borderRight: "1px solid var(--border)",
+    border: "none",
     marginRight: "16px",
-    paddingRight: "8px",
     userSelect: "none",
+    minHeight: "0 !important",
+    height: "fit-content !important",
+    alignSelf: "flex-start",
+  },
+  ".cm-lineNumbers": {
+    borderRight: "1px solid var(--border)",
+    paddingRight: "8px",
+    minHeight: "0 !important",
+    height: "fit-content !important",
   },
   ".cm-lineNumbers .cm-gutterElement": {
     fontFamily: "var(--font-mono)",

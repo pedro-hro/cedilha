@@ -9,7 +9,7 @@
   /* shared layout / type tokens */
   --font-mono: "JetBrains Mono", "Iosevka", "Fira Code", "DejaVu Sans Mono",
     "Ubuntu Mono", monospace;
-  --editor-max-width: 760px;
+  --editor-max-width: 1040px;
   --radius: 6px;
   --statusbar-height: 26px;
 }

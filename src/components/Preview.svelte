@@ -75,12 +75,13 @@
     color: var(--fg);
     user-select: text;
     box-sizing: border-box;
+    padding: 24px 32px 240px 32px;
   }
 
   .markdown-body {
-    max-width: var(--editor-max-width, 780px);
-    margin: 0 auto;
-    padding: 36px 32px 240px 32px;
+    max-width: var(--editor-max-width, 1040px);
+    margin: 0;
+    padding: 0;
     font-family: var(--font-mono);
     line-height: 1.7;
     font-size: var(--editor-font-size, 15px);

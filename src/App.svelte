@@ -287,8 +287,13 @@
     <!-- Right: Settings -->
     <div class="toolbar-right" data-tauri-drag-region>
       <div class="util-actions">
-        <button onclick={() => (settingsOpen = !settingsOpen)} title="Settings (Ctrl+,)">
-          Settings
+        <button
+          class="settings-btn"
+          onclick={() => (settingsOpen = !settingsOpen)}
+          title="Settings (Ctrl+,)"
+        >
+          <span>Settings</span>
+          <kbd class="key-badge">Ctrl ,</kbd>
         </button>
       </div>
     </div>
@@ -422,6 +427,33 @@
   .toolbar button:hover {
     background: var(--bg-surface);
     border-color: var(--border);
+  }
+
+  .settings-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+  }
+
+  .key-badge {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 2px 5px;
+    color: var(--fg-dim);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    letter-spacing: -0.01em;
+    pointer-events: none;
+    transition: color 0.12s ease, border-color 0.12s ease;
+  }
+
+  .settings-btn:hover .key-badge {
+    color: var(--accent);
+    border-color: var(--accent);
   }
 
   .save-btn.dirty {
