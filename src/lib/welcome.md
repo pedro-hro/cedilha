@@ -130,9 +130,12 @@ Colons in the divider row set the alignment: left, centered, right.
 | more text | more text | 22 |
 | even more | even more | 333 |
 
-### Links, footnotes and rules
+### Links, images, footnotes and rules
 
 A [link](https://commonmark.org/help/) and a bare address: <https://www.markdownguide.org>.
+An image is a link with a `!` in front: `![a caption](figure.png)`. Keep the picture next to
+your document, or in a subfolder like `![a caption](figures/fit.png)`, and it appears in the
+preview; `https://` addresses work too.
 Footnotes[^fn] collect themselves at the bottom of the page.
 Three dashes on their own make a horizontal rule, like the one just below.
 
@@ -222,8 +225,10 @@ editor and a running Cedilha picks the change up within a second.
   instead of overwriting it, and `Ctrl+S` is how you choose to overwrite.
 - **Safe by design.** Raw HTML in a document is shown as text rather than run, and links that
   could execute code are disabled, so it is safer to open Markdown files, but be careful nevertheless.
-- **Images.** Pictures from `https://` addresses and embedded `data:` images render; images
-  referenced by a local file path do not yet.
+- **Images.** Local pictures are found relative to your document, so save it first. Only files
+  in the document's own folder (and the folders below it) are shown, and a missing one is
+  reported in place. PNG, JPEG, GIF, WebP, AVIF and BMP work, as do `https://` addresses; SVG
+  files do not yet.
 - **Math.** Formulas are rendered by [KaTeX](https://katex.org), which supports most of what you
   will need from LaTeX math; its [function list](https://katex.org/docs/supported.html) is the
   place to look when something is missing.

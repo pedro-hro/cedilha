@@ -1,11 +1,15 @@
 <script lang="ts">
   import { onDestroy, tick, createEventDispatcher } from "svelte";
   import katex from "katex";
+  import { convertFileSrc } from "@tauri-apps/api/core";
   import * as api from "../lib/tauri";
+  import { resolveLocalImage } from "../lib/images";
 
   export let content = "";
   export let centered = false;
   export let active = true;
+  /** Path of the open document; local images are resolved against its folder. */
+  export let docPath: string | null = null;
 
   const dispatch = createEventDispatcher<{ scroll: void }>();
 
@@ -68,6 +72,45 @@
         queueRaf = requestAnimationFrame(flushRenderQueue);
       }
     }, 100);
+  }
+
+  // Point relative image paths at the document's folder through the asset protocol. The
+  // original reference is kept in data-orig-src so a "Save as" can re-resolve it.
+  function applyLocalImages() {
+    if (!container) return;
+    container.querySelectorAll<HTMLImageElement>("img").forEach((img) => {
+      // A missing or blocked image becomes a short note instead of the browser's broken icon.
+      if (!img.dataset.watching) {
+        img.dataset.watching = "1";
+        img.addEventListener(
+          "error",
+          () => {
+            const note = document.createElement("span");
+            note.className = "img-missing";
+            const name = img.alt || img.dataset.origSrc || img.getAttribute("src") || "image";
+            note.textContent = `image not found: ${name}`;
+            img.replaceWith(note);
+          },
+          { once: true },
+        );
+      }
+      const original = img.dataset.origSrc ?? img.getAttribute("src") ?? "";
+      const abs = resolveLocalImage(docPath, original);
+      if (abs !== null) {
+        img.dataset.origSrc = original;
+        img.setAttribute("src", convertFileSrc(abs));
+      } else if (img.dataset.origSrc !== undefined) {
+        img.setAttribute("src", img.dataset.origSrc);
+        delete img.dataset.origSrc;
+      }
+    });
+  }
+
+  // After every render, and whenever the document gets (or changes) a path.
+  $: {
+    renderedHtml;
+    docPath;
+    tick().then(applyLocalImages);
   }
 
   // Rendered blocks tagged by the backend with their source range (UTF-16 offsets).
@@ -493,7 +536,17 @@
 
   .markdown-body :global(img) {
     max-width: 100%;
+    height: auto;
     border-radius: var(--radius);
+  }
+
+  .markdown-body :global(.img-missing) {
+    display: inline-block;
+    padding: 0 8px;
+    color: var(--fg-dim);
+    border: 1px dashed var(--border);
+    border-radius: var(--radius);
+    font-size: 0.9em;
   }
 
   .markdown-body :global(.math-inline:not([data-katex])) {

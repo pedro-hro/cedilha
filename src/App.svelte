@@ -605,6 +605,7 @@
       <Preview
         bind:this={preview}
         {content}
+        docPath={path}
         centered={viewMode === "preview"}
         active={viewMode !== "edit"}
         on:scroll={() => syncFrom("preview")}

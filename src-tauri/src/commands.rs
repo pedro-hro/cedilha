@@ -10,6 +10,7 @@ use std::sync::Mutex;
 use std::time::SystemTime;
 
 use tauri::window::Window;
+use tauri::Manager;
 
 /// Shared application state threaded through the command handlers.
 pub struct AppState {
@@ -51,6 +52,15 @@ impl AppState {
 
     fn remember_mtime(&self, path: &Path) {
         *self.disk_mtime.lock().unwrap() = mtime_of(path);
+    }
+}
+
+/// Let the preview show images that live next to a document (and in folders below it).
+/// The scope is enforced here, in Rust: nothing outside these folders can be shown, whatever
+/// a Markdown file asks for. Folders opened earlier in the session stay allowed.
+fn allow_document_images(app: &tauri::AppHandle, doc: &Path) {
+    if let Some(dir) = canonical(doc).parent() {
+        let _ = app.asset_protocol_scope().allow_directory(dir, true);
     }
 }
 
@@ -132,7 +142,10 @@ async fn save_async(title: &'static str) -> Option<PathBuf> {
 
 /// Open a file through the native OS dialog.
 #[tauri::command]
-pub async fn open_file(state: tauri::State<'_, AppState>) -> Result<LoadResult, String> {
+pub async fn open_file(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<LoadResult, String> {
     let path = pick_async("Open Document").await;
     let Some(path) = path else {
         return Ok(LoadResult {
@@ -144,6 +157,7 @@ pub async fn open_file(state: tauri::State<'_, AppState>) -> Result<LoadResult, 
 
     let content = fs::read_to_string(&path).map_err(|e| format!("read failed: {e}"))?;
     state.allow(&path);
+    allow_document_images(&app, &path);
     state.remember_mtime(&path);
     *state.current_path.lock().unwrap() = Some(path.clone());
 
@@ -183,12 +197,16 @@ pub fn path_from_arg(arg: &str) -> PathBuf {
 /// The file given on the command line, if any. A path typed on the command line counts
 /// as chosen by the user, so it joins the allowed set. Returns it only once.
 #[tauri::command]
-pub async fn initial_file(state: tauri::State<'_, AppState>) -> Result<Option<LoadResult>, String> {
+pub async fn initial_file(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<LoadResult>, String> {
     let Some(path) = state.initial_file.lock().unwrap().take() else {
         return Ok(None);
     };
     let content = fs::read_to_string(&path).map_err(|e| format!("read failed for {}: {e}", path.display()))?;
     state.allow(&path);
+    allow_document_images(&app, &path);
     state.remember_mtime(&path);
     *state.current_path.lock().unwrap() = Some(path.clone());
     Ok(Some(LoadResult {
@@ -241,7 +259,11 @@ pub async fn save_document(
 
 /// Save under a new location using the native save dialog.
 #[tauri::command]
-pub async fn save_as_file(content: String, state: tauri::State<'_, AppState>) -> Result<Option<String>, String> {
+pub async fn save_as_file(
+    content: String,
+    app: tauri::AppHandle,
+    state: tauri::State<'_, AppState>,
+) -> Result<Option<String>, String> {
     let path = save_async("Save Document").await;
     let Some(path) = path else {
         return Ok(None);
@@ -251,6 +273,7 @@ pub async fn save_as_file(content: String, state: tauri::State<'_, AppState>) ->
         .map_err(|e| format!("write failed for {}: {e}", path.display()))?;
 
     state.allow(&path);
+    allow_document_images(&app, &path);
     state.remember_mtime(&path);
     *state.current_path.lock().unwrap() = Some(path.clone());
     Ok(Some(path.to_string_lossy().into_owned()))
