@@ -19,7 +19,7 @@
   let dirty = false;
   let viewMode: ViewMode = "edit";
   let prefs: Prefs = {
-    theme: "omarchy",
+    theme: "gruvbox-dark",
     font_size: 15,
     tab_size: 2,
     typewriter: true,

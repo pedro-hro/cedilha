@@ -52,11 +52,7 @@ pub struct Prefs {
 }
 
 fn default_theme() -> String {
-    if crate::omarchy::omarchy_dir().is_some() {
-        "omarchy".to_string()
-    } else {
-        "catppuccin-mocha".to_string()
-    }
+    "gruvbox-dark".to_string()
 }
 
 fn default_font_size() -> u32 {
@@ -159,7 +155,7 @@ pub fn generate_toml(prefs: &Prefs) -> String {
 r#"# Cedilha Configuration (~/.config/cedilha/config.toml)
 # Opinionated, distraction-free Markdown & LaTeX editor
 
-# Active color theme.
+# Active color theme (default: "gruvbox-dark").
 # Options: "omarchy" (follows Omarchy Linux system theme),
 #          "catppuccin-mocha", "catppuccin-latte", "tokyo-night", "gruvbox-dark"
 theme = {}
@@ -308,6 +304,13 @@ mod tests {
         assert_eq!(parsed, prefs);
         // no overrides -> no table at all
         assert!(!generate_toml(&Prefs::default()).contains("[keybindings]"));
+    }
+
+    #[test]
+    fn default_theme_is_gruvbox() {
+        assert_eq!(Prefs::default().theme, "gruvbox-dark");
+        let parsed: Prefs = toml::from_str("font_size = 20\n").unwrap();
+        assert_eq!(parsed.theme, "gruvbox-dark");
     }
 
     #[test]
