@@ -38,6 +38,10 @@ pub struct Prefs {
     /// managers), "always" or "never".
     #[serde(default = "default_window_controls")]
     pub window_controls: String,
+    /// Rounded window corners drawn by the app: "auto" (everywhere except tiling window
+    /// managers, which round windows themselves), "always" or "never".
+    #[serde(default = "default_rounded_corners")]
+    pub rounded_corners: String,
     /// View shown on launch: "edit", "split" or "preview".
     #[serde(default = "default_view")]
     pub default_view: String,
@@ -71,6 +75,10 @@ fn default_window_controls() -> String {
     "auto".to_string()
 }
 
+fn default_rounded_corners() -> String {
+    "auto".to_string()
+}
+
 fn default_view() -> String {
     "edit".to_string()
 }
@@ -94,6 +102,7 @@ impl Default for Prefs {
             font_family: default_font_family(),
             editor_max_width: default_editor_max_width(),
             window_controls: default_window_controls(),
+            rounded_corners: default_rounded_corners(),
             default_view: default_view(),
             keybindings: BTreeMap::new(),
         }
@@ -170,6 +179,10 @@ editor_max_width = {}
 # (Hyprland, sway, i3, ...), "always" or "never".
 window_controls = {}
 
+# Rounded window corners drawn by the app. "auto" rounds them everywhere except on tiling
+# window managers (Hyprland, sway, ...), which already round windows themselves.
+rounded_corners = {}
+
 # Behavior
 # View shown on launch: "edit", "split" or "preview"
 default_view = {}
@@ -186,6 +199,7 @@ line_numbers = {}
         prefs.tab_size,
         prefs.editor_max_width,
         quote(&prefs.window_controls),
+        quote(&prefs.rounded_corners),
         quote(&prefs.default_view),
         prefs.typewriter,
         prefs.line_numbers,

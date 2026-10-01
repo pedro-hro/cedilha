@@ -275,16 +275,11 @@ pub fn new_document(state: tauri::State<AppState>) -> String {
     String::new()
 }
 
-/// Toggle the window between minimized and restored/visible. Handy for
-/// keyboard-first workflows and quick window switching.
-#[tauri::command(window = "window")]
-pub async fn toggle_minimize(window: Window) {
-    if window.is_minimized().unwrap_or(false) {
-        window.unminimize().ok();
-    } else {
-        window.minimize().ok();
-    }
-    window.set_focus().ok();
+/// Minimize the window. (No "toggle": once minimized there is nothing to press to restore it,
+/// and asking for focus right after minimizing makes GNOME restore the window at once.)
+#[tauri::command]
+pub fn minimize_window(window: Window) {
+    window.minimize().ok();
 }
 
 /// Maximize the window, or restore it if it already is maximized.

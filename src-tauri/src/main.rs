@@ -47,7 +47,7 @@ fn main() {
             crate::commands::save_document,
             crate::commands::save_as_file,
             crate::commands::new_document,
-            crate::commands::toggle_minimize,
+            crate::commands::minimize_window,
             crate::commands::toggle_maximize,
             crate::commands::is_tiling_wm,
             crate::commands::get_prefs,

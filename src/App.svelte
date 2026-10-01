@@ -1,5 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from "svelte";
+  import { getCurrentWindow } from "@tauri-apps/api/window";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import Editor from "./components/Editor.svelte";
   import Preview from "./components/Preview.svelte";
@@ -34,6 +35,18 @@
   let tiling = false;
   $: showControls =
     prefs.window_controls === "always" || (prefs.window_controls !== "never" && !tiling);
+  // Rounded corners only where the desktop doesn't round windows for us, and never while
+  // fullscreen or maximized (the corners would leave gaps at the screen edges). Tiling
+  // window managers report their tiled windows as "maximized", so that flag is ignored there.
+  let maximized = false;
+  let fullscreen = false;
+  $: rounded =
+    (prefs.rounded_corners === "always" || (prefs.rounded_corners !== "never" && !tiling)) &&
+    !fullscreen &&
+    !(maximized && !tiling);
+  $: if (typeof document !== "undefined") {
+    document.documentElement.toggleAttribute("data-rounded", rounded);
+  }
   $: docName = path ? path.split(/[/\\]/).pop() || path : "untitled";
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   // Two-way scroll sync. Whichever pane the user is scrolling owns the sync; scroll events
@@ -96,6 +109,20 @@
 
     api.isTilingWm().then((t) => (tiling = t)).catch(() => {});
 
+    // Track maximized / fullscreen so the corners can square off.
+    const win = getCurrentWindow();
+    const syncWindowState = async () => {
+      try {
+        maximized = await win.isMaximized();
+        fullscreen = await win.isFullscreen();
+      } catch {
+        /* not available: keep the current state */
+      }
+    };
+    void syncWindowState();
+    let unlistenResize: UnlistenFn | undefined;
+    win.onResized(syncWindowState).then((fn) => (unlistenResize = fn)).catch(() => {});
+
     api.getPrefs().then((p) => {
       applyPrefs(p);
       // Launch view comes from settings; later config reloads must not switch views.
@@ -155,6 +182,7 @@
       if (unlisten) unlisten();
       if (unlistenConfig) unlistenConfig();
       if (unlistenClose) unlistenClose();
+      if (unlistenResize) unlistenResize();
     };
   });
 
@@ -395,7 +423,7 @@
     settings: () => {
       settingsOpen = !settingsOpen;
     },
-    minimize: () => void api.toggleMinimize(),
+    minimize: () => void api.minimizeWindow(),
     maximize: () => void api.toggleMaximize(),
     close: () => void requestQuit(),
   };
@@ -494,7 +522,7 @@
 
       {#if showControls}
         <div class="win-controls">
-          <button class="wc" aria-label="Minimize" title="Minimize ({hint('minimize')})" onclick={() => api.toggleMinimize()}>─</button>
+          <button class="wc" aria-label="Minimize" title="Minimize ({hint('minimize')})" onclick={() => api.minimizeWindow()}>─</button>
           <button class="wc" aria-label="Maximize" title="Maximize ({hint('maximize')})" onclick={() => api.toggleMaximize()}>▢</button>
           <button class="wc close" aria-label="Close" title="Close ({hint('close')})" onclick={() => requestQuit()}>✕</button>
         </div>
@@ -569,6 +597,13 @@
     background: var(--bg);
     color: var(--fg);
     user-select: none;
+    position: relative; /* dialogs are positioned against the app, not the screen */
+    overflow: hidden;
+  }
+
+  :global(html[data-rounded]) .app {
+    border-radius: var(--window-radius);
+    border: 1px solid var(--border);
   }
 
   .toolbar {

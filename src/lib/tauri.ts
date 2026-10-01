@@ -16,6 +16,8 @@ export interface Prefs {
   default_view?: string;
   /** Top-bar window buttons: "auto" | "always" | "never". */
   window_controls?: string;
+  /** App-drawn rounded corners: "auto" | "always" | "never". */
+  rounded_corners?: string;
   /** Keybinding overrides: action id -> key combos. See lib/keybindings.ts. */
   keybindings?: Record<string, string[]>;
 }
@@ -62,8 +64,8 @@ export function newDocument(): Promise<string> {
   return invoke("new_document");
 }
 
-export function toggleMinimize(): Promise<void> {
-  return invoke("toggle_minimize");
+export function minimizeWindow(): Promise<void> {
+  return invoke("minimize_window");
 }
 
 export function toggleMaximize(): Promise<void> {

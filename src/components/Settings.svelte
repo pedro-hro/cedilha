@@ -28,7 +28,8 @@
     | "tab_size"
     | "editor_max_width"
     | "default_view"
-    | "window_controls";
+    | "window_controls"
+    | "rounded_corners";
   type BoolKey = "typewriter" | "line_numbers";
   type Row =
     | { kind: "choice"; section: string; label: string; key: PrefKey; options: Choice[] }
@@ -106,6 +107,17 @@
       key: "window_controls",
       options: [
         { value: "auto", label: "auto (hide on tiling WMs)" },
+        { value: "always", label: "always" },
+        { value: "never", label: "never" },
+      ],
+    },
+    {
+      kind: "choice",
+      section: "startup",
+      label: "Rounded corners",
+      key: "rounded_corners",
+      options: [
+        { value: "auto", label: "auto (not on tiling WMs)" },
         { value: "always", label: "always" },
         { value: "never", label: "never" },
       ],
@@ -400,7 +412,7 @@
 
 <style>
   .scrim {
-    position: fixed;
+    position: absolute;
     inset: 0;
     background: rgba(0, 0, 0, 0.35);
     display: flex;

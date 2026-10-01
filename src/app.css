@@ -12,6 +12,7 @@
   --editor-max-width: 1040px;
   /* Flat, terminal-like: one small radius, one minimum text size, no shadows or blur. */
   --radius: 2px;
+  --window-radius: 10px; /* app-drawn window corners, see data-rounded below */
   --text-min: 12px;
   --toolbar-height: 32px;
   --statusbar-height: 24px;
@@ -128,6 +129,12 @@ body {
 body {
   background-color: var(--bg);
   color: var(--fg);
+}
+
+/* Rounded window: the window itself is transparent, .app draws the rounded shape. */
+html[data-rounded],
+html[data-rounded] body {
+  background: transparent;
 }
 
 ::selection {
