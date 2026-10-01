@@ -16,8 +16,6 @@ pub struct Prefs {
     pub font_size: u32,
     /// Tab width in columns.
     pub tab_size: u32,
-    /// Line wrapping behavior.
-    pub wrap: bool,
     /// Typewriter (centered active line) scrolling.
     pub typewriter: bool,
     /// Line numbers in the editor gutter.
@@ -31,7 +29,6 @@ impl Default for Prefs {
             theme: "catppuccin-mocha".to_string(),
             font_size: 15,
             tab_size: 2,
-            wrap: true,
             typewriter: true,
             line_numbers: false,
         }

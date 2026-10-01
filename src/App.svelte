@@ -26,7 +26,6 @@
     theme: "catppuccin-mocha",
     font_size: 15,
     tab_size: 2,
-    wrap: true,
     typewriter: true,
     line_numbers: false,
   };
@@ -272,7 +271,6 @@
           content={content}
           fontSize={prefs.font_size}
           tabSize={prefs.tab_size}
-          wrap={prefs.wrap}
           typewriter={prefs.typewriter}
           lineNumbers={prefs.line_numbers}
           on:change={handleEditorChange}

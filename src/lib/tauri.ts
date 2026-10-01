@@ -8,7 +8,6 @@ export interface Prefs {
   theme: string;
   font_size: number;
   tab_size: number;
-  wrap: boolean;
   typewriter: boolean;
   line_numbers?: boolean;
 }

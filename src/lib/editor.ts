@@ -1,6 +1,6 @@
 // Builds a fully-configured CodeMirror 6 editor state for Cedilha.
 //
-// Composition: Markdown language support + KaTeX math plugin + typewriter
+// Composition: Markdown language support + permanent word wrap + typewriter
 // scrolling + keyboard navigation, with reactive Compartments for runtime settings.
 
 import { EditorState, type Extension } from "@codemirror/state";
@@ -10,11 +10,9 @@ import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { highlightActiveLine } from "@codemirror/view";
 import {
   type EditorOptions,
-  wrapCompartment,
   tabSizeCompartment,
   typewriterCompartment,
   lineNumbersCompartment,
-  getWrapExtension,
   getTabSizeExtension,
   getLineNumbersExtension,
 } from "./codemirror/options";
@@ -84,7 +82,8 @@ export function createEditor(opts: FullEditorOptions): EditorState {
     baseTheme,
     highlightActiveLine(),
     markdown({ markdownLanguage }),
-    wrapCompartment.of(getWrapExtension(opts.wrap)),
+    // Fixed, opinionated word-wrapping
+    EditorView.lineWrapping,
     tabSizeCompartment.of(getTabSizeExtension(opts.tabSize)),
     typewriterCompartment.of(createTypewriterExtension(opts.typewriter)),
     lineNumbersCompartment.of(getLineNumbersExtension(opts.lineNumbers ?? false)),

@@ -74,14 +74,6 @@
 
       <div class="row toggle">
         <span>
-          <strong>Word wrap</strong>
-          <small>Soft-wrap long lines in the editor.</small>
-        </span>
-        <input type="checkbox" bind:checked={prefs.wrap} />
-      </div>
-
-      <div class="row toggle">
-        <span>
           <strong>Typewriter scrolling</strong>
           <small>Keep the active line vertically centered.</small>
         </span>

@@ -2,11 +2,9 @@
   import { onMount, createEventDispatcher } from "svelte";
   import { createEditor } from "../lib/editor";
   import {
-    wrapCompartment,
     tabSizeCompartment,
     typewriterCompartment,
     lineNumbersCompartment,
-    getWrapExtension,
     getTabSizeExtension,
     getLineNumbersExtension,
   } from "../lib/codemirror/options";
@@ -18,7 +16,6 @@
   export let content = "";
   export let fontSize = 15;
   export let tabSize = 2;
-  export let wrap = true;
   export let typewriter = true;
   export let lineNumbers = false;
 
@@ -40,7 +37,6 @@
       content,
       fontSize,
       tabSize,
-      wrap,
       typewriter,
       lineNumbers,
       updateListener,
@@ -65,12 +61,6 @@
   }
 
   // Reactive options dispatch via CodeMirror compartments
-  $: if (view && wrap !== undefined) {
-    view.dispatch({
-      effects: wrapCompartment.reconfigure(getWrapExtension(wrap)),
-    });
-  }
-
   $: if (view && tabSize !== undefined) {
     view.dispatch({
       effects: tabSizeCompartment.reconfigure(getTabSizeExtension(tabSize)),
