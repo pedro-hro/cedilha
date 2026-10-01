@@ -1,16 +1,22 @@
 <script lang="ts">
-  import type { Prefs } from "../lib/tauri";
+  import type { Prefs, OmarchyTheme } from "../lib/tauri";
 
   export let open = false;
   export let prefs: Prefs = {
-    theme: "catppuccin-mocha",
+    theme: "omarchy",
     font_size: 15,
     tab_size: 2,
-    wrap: true,
     typewriter: true,
   };
+  export let omarchyTheme: OmarchyTheme | null = null;
 
-  const themes = [
+  $: themes = [
+    {
+      id: "omarchy",
+      label: omarchyTheme
+        ? `Omarchy (System: ${omarchyTheme.display_name})`
+        : "Omarchy (System)",
+    },
     { id: "catppuccin-mocha", label: "Catppuccin Mocha" },
     { id: "catppuccin-latte", label: "Catppuccin Latte" },
     { id: "tokyo-night", label: "Tokyo Night" },

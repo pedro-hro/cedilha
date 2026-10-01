@@ -4,11 +4,16 @@
 
 mod commands;
 mod config;
+mod omarchy;
 
 fn main() {
     let initial_prefs = config::load_once().unwrap_or_default();
 
     tauri::Builder::default()
+        .setup(|app| {
+            crate::omarchy::start_theme_watcher(app.handle().clone());
+            Ok(())
+        })
         .manage(crate::commands::AppState {
             current_path: std::sync::Mutex::new(None),
             prefs: std::sync::Mutex::new(initial_prefs),
@@ -21,7 +26,8 @@ fn main() {
             crate::commands::new_document,
             crate::commands::toggle_minimize,
             crate::commands::get_prefs,
-            crate::commands::save_prefs
+            crate::commands::save_prefs,
+            crate::commands::get_omarchy_theme
         ))
         .run(tauri::generate_context!())
         .expect("error while running Cedilha application");

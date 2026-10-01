@@ -1,11 +1,12 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import Editor from "./components/Editor.svelte";
   import Preview from "./components/Preview.svelte";
   import StatusBar from "./components/StatusBar.svelte";
   import Settings from "./components/Settings.svelte";
   import * as api from "./lib/tauri";
-  import type { Prefs } from "./lib/tauri";
+  import type { Prefs, OmarchyTheme } from "./lib/tauri";
   import { getCurrentWindow } from "@tauri-apps/api/window";
 
   let appWindow: ReturnType<typeof getCurrentWindow> | null = null;
@@ -23,20 +24,74 @@
   let dirty = false;
   let viewMode: ViewMode = "edit";
   let prefs: Prefs = {
-    theme: "catppuccin-mocha",
+    theme: "omarchy",
     font_size: 15,
     tab_size: 2,
     typewriter: true,
     line_numbers: false,
   };
+  let omarchyTheme: OmarchyTheme | null = null;
   let settingsOpen = false;
   let editor: InstanceType<typeof Editor>;
   let stats = { words: 0, chars: 0, lines: 1 };
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
+  function injectOmarchyTheme(theme: OmarchyTheme) {
+    omarchyTheme = theme;
+    let styleEl = document.getElementById("omarchy-theme-style");
+    if (!styleEl) {
+      styleEl = document.createElement("style");
+      styleEl.id = "omarchy-theme-style";
+      document.head.appendChild(styleEl);
+    }
+    styleEl.textContent = `
+      :root[data-theme="omarchy"] {
+        --bg: ${theme.bg};
+        --bg-elev: ${theme.bg_elev};
+        --bg-surface: ${theme.bg_surface};
+        --fg: ${theme.fg};
+        --fg-dim: ${theme.fg_dim};
+        --accent: ${theme.accent};
+        --accent-2: ${theme.accent2};
+        --danger: ${theme.danger};
+        --success: ${theme.success};
+        --warning: ${theme.warning};
+        --border: ${theme.border};
+        --selection: ${theme.selection};
+        --marker: ${theme.marker};
+        --active-line: ${theme.active_line};
+      }
+    `;
+  }
+
   // ----- lifecycle -----
   onMount(() => {
+    let unlisten: UnlistenFn | undefined;
+
     api.getPrefs().then((p) => applyPrefs(p)).catch(() => {});
+
+    api.getOmarchyTheme().then((theme) => {
+      if (theme) {
+        injectOmarchyTheme(theme);
+      }
+    }).catch(() => {});
+
+    listen<OmarchyTheme>("omarchy-theme-changed", (event) => {
+      if (event.payload) {
+        injectOmarchyTheme(event.payload);
+      }
+    }).then((fn) => {
+      unlisten = fn;
+    }).catch(() => {});
+
+    const onFocus = () => {
+      api.getOmarchyTheme().then((theme) => {
+        if (theme) {
+          injectOmarchyTheme(theme);
+        }
+      }).catch(() => {});
+    };
+    window.addEventListener("focus", onFocus);
 
     // Compute initial stats
     computeStats(content);
@@ -47,6 +102,11 @@
     if (initial) {
       api.readDocument(initial).then((doc) => loadInto(doc, initial)).catch(() => {});
     }
+
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      if (unlisten) unlisten();
+    };
   });
 
   function applyPrefs(p: Prefs) {
@@ -297,7 +357,7 @@
     lineCount={stats.lines}
   />
 
-  <Settings bind:open={settingsOpen} bind:prefs={prefs} />
+  <Settings bind:open={settingsOpen} bind:prefs={prefs} {omarchyTheme} />
 </div>
 
 <style>

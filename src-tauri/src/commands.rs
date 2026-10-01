@@ -144,3 +144,9 @@ pub fn save_prefs(
     *state.prefs.lock().unwrap() = new_prefs;
     Ok(())
 }
+
+/// Fetch the active Omarchy Linux theme, if present on the system.
+#[tauri::command]
+pub fn get_omarchy_theme() -> Option<crate::omarchy::OmarchyTheme> {
+    crate::omarchy::read_current_omarchy_theme()
+}

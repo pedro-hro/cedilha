@@ -42,10 +42,35 @@ export function toggleMinimize(): Promise<void> {
   return invoke("toggle_minimize");
 }
 
+export interface OmarchyTheme {
+  id: string;
+  name: string;
+  display_name: string;
+  is_light: boolean;
+  bg: string;
+  bg_elev: string;
+  bg_surface: string;
+  fg: string;
+  fg_dim: string;
+  accent: string;
+  accent2: string;
+  danger: string;
+  success: string;
+  warning: string;
+  border: string;
+  selection: string;
+  marker: string;
+  active_line: string;
+}
+
 export function getPrefs(): Promise<Prefs> {
   return invoke("get_prefs");
 }
 
 export function savePrefs(prefs: Prefs): Promise<void> {
   return invoke("save_prefs", { newPrefs: prefs });
+}
+
+export function getOmarchyTheme(): Promise<OmarchyTheme | null> {
+  return invoke("get_omarchy_theme");
 }

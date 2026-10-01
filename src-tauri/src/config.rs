@@ -25,8 +25,13 @@ pub struct Prefs {
 
 impl Default for Prefs {
     fn default() -> Self {
+        let theme = if crate::omarchy::omarchy_dir().is_some() {
+            "omarchy".to_string()
+        } else {
+            "catppuccin-mocha".to_string()
+        };
         Prefs {
-            theme: "catppuccin-mocha".to_string(),
+            theme,
             font_size: 15,
             tab_size: 2,
             typewriter: true,
