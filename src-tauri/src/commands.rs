@@ -150,3 +150,53 @@ pub fn save_prefs(
 pub fn get_omarchy_theme() -> Option<crate::omarchy::OmarchyTheme> {
     crate::omarchy::read_current_omarchy_theme()
 }
+
+/// High-performance asynchronous markdown renderer using native pulldown-cmark in Rust.
+/// Capable of parsing megabyte-scale documents in milliseconds off the main UI thread.
+#[tauri::command]
+pub async fn render_markdown(content: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut options = pulldown_cmark::Options::empty();
+        options.insert(pulldown_cmark::Options::ENABLE_TABLES);
+        options.insert(pulldown_cmark::Options::ENABLE_FOOTNOTES);
+        options.insert(pulldown_cmark::Options::ENABLE_STRIKETHROUGH);
+        options.insert(pulldown_cmark::Options::ENABLE_TASKLISTS);
+        options.insert(pulldown_cmark::Options::ENABLE_HEADING_ATTRIBUTES);
+        options.insert(pulldown_cmark::Options::ENABLE_MATH);
+
+        let parser = pulldown_cmark::Parser::new_ext(&content, options);
+        let mut html = String::with_capacity(content.len() * 3 / 2);
+        pulldown_cmark::html::push_html(&mut html, parser);
+        html
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_render_markdown_math() {
+        tauri::async_runtime::block_on(async {
+            let input = "Math with symbols: $x < y$ and $a > b$ and $a & b$\n";
+            let res = render_markdown(input.to_string()).await.unwrap();
+            println!("RENDERED HTML:\n{}", res);
+        });
+    }
+
+    #[test]
+    fn test_render_huge_galaxy_book() {
+        let path = "/tmp/sample.md";
+        if let Ok(content) = std::fs::read_to_string(path) {
+            let start = std::time::Instant::now();
+            let html = tauri::async_runtime::block_on(async {
+                render_markdown(content).await.unwrap()
+            });
+            let elapsed = start.elapsed();
+            println!("Huge file parsed in {:?}! HTML len: {}", elapsed, html.len());
+        }
+    }
+}
+

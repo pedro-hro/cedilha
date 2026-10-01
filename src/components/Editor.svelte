@@ -21,18 +21,18 @@
 
   let view: EditorView | null = null;
   let host: HTMLDivElement;
-  let isInternalUpdate = false;
 
-  onMount(() => {
-    const updateListener = EditorView.updateListener.of((update) => {
+  function buildListener() {
+    return EditorView.updateListener.of((update) => {
       if (update.docChanged) {
-        isInternalUpdate = true;
         content = update.state.doc.toString();
         dispatch("change", content);
-        isInternalUpdate = false;
       }
     });
+  }
 
+  onMount(() => {
+    const updateListener = buildListener();
     const state = createEditor({
       content,
       fontSize,
@@ -52,13 +52,6 @@
       view = null;
     };
   });
-
-  // Sync external content changes into CodeMirror (e.g. Open File, New File)
-  $: if (view && !isInternalUpdate && content !== view.state.doc.toString()) {
-    view.dispatch({
-      changes: { from: 0, to: view.state.doc.length, insert: content },
-    });
-  }
 
   // Reactive options dispatch via CodeMirror compartments
   $: if (view && tabSize !== undefined) {
@@ -89,10 +82,16 @@
 
   export function setContent(c: string) {
     content = c;
-    if (view && view.state.doc.toString() !== c) {
-      view.dispatch({
-        changes: { from: 0, to: view.state.doc.length, insert: c },
+    if (view) {
+      const state = createEditor({
+        content: c,
+        fontSize,
+        tabSize,
+        typewriter,
+        lineNumbers,
+        updateListener: buildListener(),
       });
+      view.setState(state);
     }
   }
 </script>

@@ -96,7 +96,7 @@
     }).catch(() => {});
 
     // Compute initial stats
-    computeStats(content);
+    scheduleComputeStats(content, true);
 
     // Load initial file argument if passed via CLI: `cedilha document.md`
     const params = new URLSearchParams(window.location.search);
@@ -132,7 +132,7 @@
     content = doc;
     path = p;
     dirty = false;
-    computeStats(doc);
+    scheduleComputeStats(doc, true);
     if (editor) {
       editor.setContent(doc);
     }
@@ -188,10 +188,45 @@
     }
   }
 
+  let statsTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function computeStatsFast(text: string) {
+    const chars = text.length;
+    let lines = text.length > 0 ? 1 : 0;
+    let words = 0;
+    let inWord = false;
+
+    for (let i = 0; i < text.length; i++) {
+      const code = text.charCodeAt(i);
+      if (code === 10) {
+        lines++;
+      }
+      if (code <= 32 && (code === 32 || (code >= 9 && code <= 13))) {
+        inWord = false;
+      } else if (!inWord) {
+        inWord = true;
+        words++;
+      }
+    }
+
+    stats = { words, chars, lines: lines || 1 };
+  }
+
+  function scheduleComputeStats(text: string, immediate = false) {
+    if (statsTimer) clearTimeout(statsTimer);
+    if (immediate) {
+      computeStatsFast(text);
+    } else {
+      statsTimer = setTimeout(() => {
+        computeStatsFast(text);
+      }, 150);
+    }
+  }
+
   function handleEditorChange(e: CustomEvent<string>) {
     content = e.detail;
     dirty = true;
-    computeStats(content);
+    scheduleComputeStats(content, false);
     queueAutosave();
   }
 
@@ -203,14 +238,6 @@
         api.saveDocument(path, content).then(() => (dirty = false)).catch(() => {});
       }
     }, 1500);
-  }
-
-  // ----- stats -----
-  function computeStats(text: string) {
-    const chars = text.length;
-    const lines = text ? text.split("\n").length : 1;
-    const words = (text.match(/\S+/g) ?? []).length;
-    stats = { words, chars, lines };
   }
 
   // ----- keyboard shortcuts -----

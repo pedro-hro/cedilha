@@ -76,3 +76,7 @@ export function savePrefs(prefs: Prefs): Promise<void> {
 export function getOmarchyTheme(): Promise<OmarchyTheme | null> {
   return invoke("get_omarchy_theme");
 }
+
+export function renderMarkdown(content: string): Promise<string> {
+  return invoke("render_markdown", { content });
+}

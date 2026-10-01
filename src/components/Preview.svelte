@@ -1,68 +1,156 @@
 <script lang="ts">
-  import { marked } from "marked";
+  import { onDestroy, tick } from "svelte";
   import katex from "katex";
+  import * as api from "../lib/tauri";
 
   export let content = "";
   export let centered = false;
 
-  function renderMarkdown(md: string): string {
-    if (!md.trim()) return '<div class="preview-empty">No content to preview</div>';
+  let renderedHtml = "";
+  let container: HTMLElement;
+  let scrollContainer: HTMLDivElement;
+  let mathObserver: IntersectionObserver | null = null;
+  let idleTimeout: ReturnType<typeof setTimeout> | null = null;
+  let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
+  let currentRequestId = 0;
 
-    // 1. Extract block math $$...$$
-    const mathBlocks: string[] = [];
-    let text = md.replace(/\$\$([\s\S]+?)\$\$/g, (_, math) => {
-      const id = `@@MATHBLOCK_${mathBlocks.length}@@`;
-      try {
-        mathBlocks.push(
-          katex.renderToString(math.trim(), {
-            displayMode: true,
-            throwOnError: false,
-          }),
-        );
-      } catch (e) {
-        mathBlocks.push(`<pre class="math-error">${math}</pre>`);
-      }
-      return `\n\n${id}\n\n`;
-    });
-
-    // 2. Extract inline math $...$
-    const mathInlines: string[] = [];
-    text = text.replace(/(?<!\\)\$([^\$\n]+?)\$/g, (_, math) => {
-      const id = `@@MATHINLINE_${mathInlines.length}@@`;
-      try {
-        mathInlines.push(
-          katex.renderToString(math.trim(), {
-            displayMode: false,
-            throwOnError: false,
-          }),
-        );
-      } catch (e) {
-        mathInlines.push(`<code>${math}</code>`);
-      }
-      return id;
-    });
-
-    // 3. Parse Markdown
+  function renderKatexElement(el: HTMLElement) {
+    if (el.dataset.katex) return;
+    el.dataset.katex = "1";
+    const raw = el.textContent || "";
+    const isDisplay = el.classList.contains("math-display");
     try {
-      let html = marked.parse(text) as string;
-
-      // 4. Restore block math
-      html = html.replace(/@@MATHBLOCK_(\d+)@@/g, (_, i) => mathBlocks[parseInt(i)] ?? "");
-
-      // 5. Restore inline math
-      html = html.replace(/@@MATHINLINE_(\d+)@@/g, (_, i) => mathInlines[parseInt(i)] ?? "");
-
-      return html;
+      katex.render(raw.trim(), el, {
+        displayMode: isDisplay,
+        throwOnError: false,
+      });
     } catch {
-      return `<p>${text}</p>`;
+      // Keep fallback unrendered text on syntax error
     }
   }
 
-  $: renderedHtml = renderMarkdown(content);
+  function setupMathRendering() {
+    if (!container) return;
+
+    if (mathObserver) {
+      mathObserver.disconnect();
+      mathObserver = null;
+    }
+    if (idleTimeout) {
+      clearTimeout(idleTimeout);
+      idleTimeout = null;
+    }
+
+    const mathEls = container.querySelectorAll<HTMLElement>(
+      ".math-inline:not([data-katex]), .math-display:not([data-katex])",
+    );
+
+    if (mathEls.length === 0) return;
+
+    // For documents with few equations (<= 40), render all immediately in one go
+    if (mathEls.length <= 40) {
+      for (let i = 0; i < mathEls.length; i++) {
+        renderKatexElement(mathEls[i]);
+      }
+      return;
+    }
+
+    // For large documents (e.g. books with thousands of equations):
+    // 1. Observe visible equations in viewport with 400px margin for instant display
+    if (typeof IntersectionObserver !== "undefined") {
+      mathObserver = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              const target = entry.target as HTMLElement;
+              mathObserver?.unobserve(target);
+              renderKatexElement(target);
+            }
+          }
+        },
+        {
+          root: scrollContainer || null,
+          rootMargin: "400px 0px 400px 0px",
+        },
+      );
+
+      for (let i = 0; i < mathEls.length; i++) {
+        mathObserver.observe(mathEls[i]);
+      }
+    }
+
+    // 2. Background progressive rendering for any off-screen equations
+    let idleIndex = 0;
+    function processIdleBatch() {
+      if (!container) return;
+      const pending = container.querySelectorAll<HTMLElement>(
+        ".math-inline:not([data-katex]), .math-display:not([data-katex])",
+      );
+      if (pending.length === 0) return;
+
+      const startTime = performance.now();
+      while (idleIndex < pending.length && performance.now() - startTime < 10) {
+        renderKatexElement(pending[idleIndex++]);
+      }
+
+      if (idleIndex < pending.length) {
+        idleTimeout = setTimeout(processIdleBatch, 20);
+      }
+    }
+
+    idleTimeout = setTimeout(processIdleBatch, 100);
+  }
+
+  async function updatePreview(raw: string, immediate = false) {
+    if (debounceTimeout) {
+      clearTimeout(debounceTimeout);
+      debounceTimeout = null;
+    }
+
+    if (!raw.trim()) {
+      renderedHtml = '<div class="preview-empty">No content to preview</div>';
+      return;
+    }
+
+    const reqId = ++currentRequestId;
+
+    const doRender = async () => {
+      try {
+        const html = await api.renderMarkdown(raw);
+        if (reqId === currentRequestId) {
+          renderedHtml = html;
+          await tick();
+          if (reqId === currentRequestId) {
+            setupMathRendering();
+          }
+        }
+      } catch (err) {
+        if (reqId === currentRequestId) {
+          renderedHtml = `<pre class="preview-empty">Failed to render markdown</pre>`;
+        }
+      }
+    };
+
+    if (immediate) {
+      await doRender();
+    } else {
+      debounceTimeout = setTimeout(doRender, 150);
+    }
+  }
+
+  $: {
+    updatePreview(content, renderedHtml === "");
+  }
+
+  onDestroy(() => {
+    if (debounceTimeout) clearTimeout(debounceTimeout);
+    if (idleTimeout) clearTimeout(idleTimeout);
+    if (mathObserver) mathObserver.disconnect();
+  });
 </script>
 
-<div class="preview-container" class:centered>
-  <article class="markdown-body">
+<div bind:this={scrollContainer} class="preview-container" class:centered>
+  <article bind:this={container} class="markdown-body">
     {@html renderedHtml}
   </article>
 </div>
@@ -197,6 +285,11 @@
     margin: 0.35em 0;
   }
 
+  .markdown-body :global(input[type="checkbox"]) {
+    margin-right: 6px;
+    accent-color: var(--accent);
+  }
+
   .markdown-body :global(hr) {
     border: none;
     border-top: 1px solid var(--border);
@@ -228,6 +321,29 @@
   .markdown-body :global(img) {
     max-width: 100%;
     border-radius: var(--radius);
+  }
+
+  .markdown-body :global(.math-inline:not([data-katex])) {
+    font-family: var(--font-mono);
+    opacity: 0.85;
+    padding: 1px 4px;
+  }
+
+  .markdown-body :global(.math-display) {
+    display: block;
+    text-align: center;
+    margin: 1.2em 0;
+    overflow-x: auto;
+  }
+
+  .markdown-body :global(.math-display:not([data-katex])) {
+    font-family: var(--font-mono);
+    opacity: 0.85;
+    padding: 12px 16px;
+    background: var(--bg-elev);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    white-space: pre-wrap;
   }
 
   .markdown-body :global(.katex-display) {

@@ -28,7 +28,8 @@ fn main() {
             crate::commands::toggle_minimize,
             crate::commands::get_prefs,
             crate::commands::save_prefs,
-            crate::commands::get_omarchy_theme
+            crate::commands::get_omarchy_theme,
+            crate::commands::render_markdown
         ))
         .run(tauri::generate_context!())
         .expect("error while running Cedilha application");
