@@ -52,6 +52,9 @@
         ],
         "desktopTemplate": "packaging/cedilha.desktop"
       }
+    },
+    "resources": {
+      "resources/welcome/astrophysics-spectra.jpg": "welcome/astrophysics-spectra.jpg"
     }
   }
 }

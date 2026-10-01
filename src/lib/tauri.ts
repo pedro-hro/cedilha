@@ -70,6 +70,11 @@ export function minimizeWindow(): Promise<void> {
   return invoke("minimize_window");
 }
 
+/** Folder holding the pictures that ship with the welcome page, or null if not installed. */
+export function welcomeAssetsDir(): Promise<string | null> {
+  return invoke("welcome_assets_dir");
+}
+
 /** Open an http(s)/mailto link in the system browser or mail client. */
 export function openUrl(url: string): Promise<void> {
   return invoke("open_url", { url });

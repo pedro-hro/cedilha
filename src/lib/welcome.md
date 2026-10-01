@@ -130,12 +130,33 @@ Colons in the divider row set the alignment: left, centered, right.
 | more text | more text | 22 |
 | even more | even more | 333 |
 
-### Links, images, footnotes and rules
+### Images
+
+An image is a link with a `!` in front. The first picture below is a file that ships with
+Cedilha and sits in the same folder as this page, so its name alone is enough:
+
+```markdown
+![A plate of stellar spectra](astrophysics-spectra.jpg)
+```
+
+![Spectra of the fixed stars and nebulae compared with the Sun's spectrum (1902)](astrophysics-spectra.jpg)
+
+The second one lives on the web, so it needs its full address (and an internet connection; if
+you are offline you get a note instead of a picture):
+
+```markdown
+![The Hubble Ultra Deep Field](https://upload.wikimedia.org/…/Hubble_ultra_deep_field.jpg)
+```
+
+![The Hubble Ultra Deep Field, seen by NASA and ESA](https://upload.wikimedia.org/wikipedia/commons/thumb/2/2f/Hubble_ultra_deep_field.jpg/500px-Hubble_ultra_deep_field.jpg)
+
+*Both pictures are in the public domain. The spectra plate, from the* New International
+Encyclopedia *(1902), is the first image of Wikipedia's article on astrophysics; the Hubble
+Ultra Deep Field is by NASA and ESA.*
+
+### Links, footnotes and rules
 
 A [link](https://commonmark.org/help/) and a bare address: <https://www.markdownguide.org>.
-An image is a link with a `!` in front: `![a caption](figure.png)`. Keep the picture next to
-your document, or in a subfolder like `![a caption](figures/fit.png)`, and it appears in the
-preview; `https://` addresses work too.
 Footnotes[^fn] collect themselves at the bottom of the page.
 Three dashes on their own make a horizontal rule, like the one just below.
 
@@ -228,7 +249,8 @@ editor and a running Cedilha picks the change up within a second.
 - **Images.** Local pictures are found relative to your document, so save it first. Only files
   in the document's own folder (and the folders below it) are shown, and a missing one is
   reported in place. PNG, JPEG, GIF, WebP, AVIF and BMP work, as do `https://` addresses; SVG
-  files do not yet.
+  files do not yet. The spectra plate on this page ships with Cedilha: if you save a copy of
+  this page, put the picture next to it to keep seeing it.
 - **Math.** Formulas are rendered by [KaTeX](https://katex.org), which supports most of what you
   will need from LaTeX math; its [function list](https://katex.org/docs/supported.html) is the
   place to look when something is missing.

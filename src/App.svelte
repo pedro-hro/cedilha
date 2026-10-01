@@ -218,7 +218,11 @@
     }
   }
 
+  // Virtual document path for the untitled welcome page, only used to find its pictures.
+  let welcomeBase: string | null = null;
+
   function loadInto(doc: string, p: string | null) {
+    welcomeBase = null;
     // CodeMirror normalizes line endings to \n; keep the rendered text identical so
     // preview source offsets line up with the editor document.
     doc = doc.replace(/\r\n?/g, "\n");
@@ -416,14 +420,18 @@
   $: bindings = resolveBindings(prefs.keybindings);
 
   // The welcome page always opens as a fresh untitled copy, so edits never touch the original.
-  function openWelcome() {
+  async function openWelcome() {
     loadInto(welcome, null);
     if (viewMode === "edit") viewMode = "split";
+    // The page's own pictures live in the app's resource folder: borrow it as the folder to
+    // resolve images against, until the copy is saved somewhere or another file replaces it.
+    const dir = await api.welcomeAssetsDir().catch(() => null);
+    if (dir && path === null && content === welcome) welcomeBase = `${dir}/welcome.md`;
   }
 
   async function showWelcome() {
     if (!(await confirmDiscard())) return;
-    openWelcome();
+    await openWelcome();
   }
 
   // Links in the preview must never navigate the app window away: in-page anchors scroll the
@@ -605,7 +613,7 @@
       <Preview
         bind:this={preview}
         {content}
-        docPath={path}
+        docPath={path ?? welcomeBase}
         centered={viewMode === "preview"}
         active={viewMode !== "edit"}
         on:scroll={() => syncFrom("preview")}

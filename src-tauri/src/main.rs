@@ -50,6 +50,7 @@ fn main() {
             crate::commands::minimize_window,
             crate::commands::toggle_maximize,
             crate::commands::open_url,
+            crate::commands::welcome_assets_dir,
             crate::commands::is_tiling_wm,
             crate::commands::get_prefs,
             crate::commands::save_prefs,

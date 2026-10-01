@@ -332,6 +332,19 @@ pub fn open_url(url: String) -> Result<(), String> {
     Ok(())
 }
 
+/// Folder with the pictures that ship with the welcome page (an untitled document has no
+/// folder of its own, so its images are looked up here). Allowed for image display.
+#[tauri::command]
+pub fn welcome_assets_dir(app: tauri::AppHandle) -> Option<String> {
+    let dir = app.path().resource_dir().ok()?.join("welcome");
+    if !dir.is_dir() {
+        return None;
+    }
+    let dir = canonical(&dir);
+    let _ = app.asset_protocol_scope().allow_directory(&dir, true);
+    Some(dir.to_string_lossy().into_owned())
+}
+
 /// Maximize the window, or restore it if it already is maximized.
 #[tauri::command]
 pub fn toggle_maximize(window: Window) {
