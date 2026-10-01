@@ -11,7 +11,10 @@
   import { createTypewriterExtension } from "../lib/codemirror/typewriter";
   import { EditorView } from "@codemirror/view";
 
-  const dispatch = createEventDispatcher<{ change: string }>();
+  const dispatch = createEventDispatcher<{
+    change: string;
+    scroll: { ratio: number };
+  }>();
 
   export let content = "";
   export let fontSize = 15;
@@ -21,6 +24,7 @@
 
   let view: EditorView | null = null;
   let host: HTMLDivElement;
+  let isSyncing = false;
 
   function buildListener() {
     return EditorView.updateListener.of((update) => {
@@ -47,7 +51,18 @@
       parent: host,
     });
 
+    const onScroll = () => {
+      if (!view || isSyncing) return;
+      const scroller = view.scrollDOM;
+      const max = scroller.scrollHeight - scroller.clientHeight;
+      const ratio = max > 0 ? scroller.scrollTop / max : 0;
+      dispatch("scroll", { ratio });
+    };
+
+    view.scrollDOM.addEventListener("scroll", onScroll, { passive: true });
+
     return () => {
+      view?.scrollDOM.removeEventListener("scroll", onScroll);
       view?.destroy();
       view = null;
     };
@@ -186,6 +201,20 @@
       view.dispatch({
         selection: { anchor: match.from, head: match.to },
         effects: [EditorView.scrollIntoView(match.from, { y: "center" })],
+      });
+      view.focus();
+    }
+  }
+
+  export function syncScrollRatio(ratio: number) {
+    if (!view) return;
+    const scroller = view.scrollDOM;
+    const max = scroller.scrollHeight - scroller.clientHeight;
+    if (max > 0) {
+      isSyncing = true;
+      scroller.scrollTop = ratio * max;
+      requestAnimationFrame(() => {
+        isSyncing = false;
       });
     }
   }

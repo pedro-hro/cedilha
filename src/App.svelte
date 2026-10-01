@@ -25,8 +25,28 @@
   let omarchyTheme: OmarchyTheme | null = null;
   let settingsOpen = false;
   let editor: InstanceType<typeof Editor>;
+  let preview: InstanceType<typeof Preview>;
+  let isSyncingScroll = false;
   let stats = { words: 0, chars: 0, lines: 1 };
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function onEditorScroll(e: CustomEvent<{ ratio: number }>) {
+    if (viewMode !== "split" || isSyncingScroll || !preview) return;
+    isSyncingScroll = true;
+    preview.syncScrollRatio(e.detail.ratio);
+    requestAnimationFrame(() => {
+      isSyncingScroll = false;
+    });
+  }
+
+  function onPreviewScroll(e: CustomEvent<{ ratio: number }>) {
+    if (viewMode !== "split" || isSyncingScroll || !editor) return;
+    isSyncingScroll = true;
+    editor.syncScrollRatio(e.detail.ratio);
+    requestAnimationFrame(() => {
+      isSyncingScroll = false;
+    });
+  }
 
   function injectOmarchyTheme(theme: OmarchyTheme) {
     omarchyTheme = theme;
@@ -360,6 +380,7 @@
         typewriter={prefs.typewriter}
         lineNumbers={prefs.line_numbers}
         on:change={handleEditorChange}
+        on:scroll={onEditorScroll}
       />
     </div>
 
@@ -373,6 +394,7 @@
       class:hidden={viewMode === "edit"}
     >
       <Preview
+        bind:this={preview}
         {content}
         centered={viewMode === "preview"}
         active={viewMode !== "edit"}
@@ -381,6 +403,7 @@
             editor.scrollToText(e.detail);
           }
         }}
+        on:scroll={onPreviewScroll}
       />
     </div>
   </main>

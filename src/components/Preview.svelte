@@ -14,6 +14,7 @@
       contextAfter: string;
       approxRatio: number;
     };
+    scroll: { ratio: number };
   }>();
 
   let renderedHtml = "";
@@ -62,10 +63,16 @@
   }
 
   let isScrolling = false;
+  let isSyncing = false;
   let scrollSettleTimer: ReturnType<typeof setTimeout> | null = null;
 
   function onScroll() {
     isScrolling = true;
+    if (!isSyncing && scrollContainer) {
+      const max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+      const ratio = max > 0 ? scrollContainer.scrollTop / max : 0;
+      dispatch("scroll", { ratio });
+    }
     if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
     scrollSettleTimer = setTimeout(() => {
       isScrolling = false;
@@ -73,6 +80,18 @@
         queueRaf = requestAnimationFrame(flushRenderQueue);
       }
     }, 100);
+  }
+
+  export function syncScrollRatio(ratio: number) {
+    if (!scrollContainer) return;
+    const max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+    if (max > 0) {
+      isSyncing = true;
+      scrollContainer.scrollTop = ratio * max;
+      requestAnimationFrame(() => {
+        isSyncing = false;
+      });
+    }
   }
 
   function flushRenderQueue() {
