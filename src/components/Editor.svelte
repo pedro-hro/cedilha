@@ -5,8 +5,10 @@
     wrapCompartment,
     tabSizeCompartment,
     typewriterCompartment,
+    lineNumbersCompartment,
     getWrapExtension,
     getTabSizeExtension,
+    getLineNumbersExtension,
   } from "../lib/codemirror/options";
   import { createTypewriterExtension } from "../lib/codemirror/typewriter";
   import { EditorView } from "@codemirror/view";
@@ -18,25 +20,35 @@
   export let tabSize = 2;
   export let wrap = true;
   export let typewriter = true;
+  export let lineNumbers = false;
 
   let view: EditorView | null = null;
   let host: HTMLDivElement;
   let isInternalUpdate = false;
 
   onMount(() => {
-    const state = createEditor({ content, fontSize, tabSize, wrap, typewriter });
+    const updateListener = EditorView.updateListener.of((update) => {
+      if (update.docChanged) {
+        isInternalUpdate = true;
+        content = update.state.doc.toString();
+        dispatch("change", content);
+        isInternalUpdate = false;
+      }
+    });
+
+    const state = createEditor({
+      content,
+      fontSize,
+      tabSize,
+      wrap,
+      typewriter,
+      lineNumbers,
+      updateListener,
+    });
+
     view = new EditorView({
       state,
       parent: host,
-      dispatch(tr) {
-        view?.update([tr]);
-        if (tr.docChanged) {
-          isInternalUpdate = true;
-          content = tr.state.doc.toString();
-          dispatch("change", content);
-          isInternalUpdate = false;
-        }
-      },
     });
 
     return () => {
@@ -71,6 +83,12 @@
     });
   }
 
+  $: if (view && lineNumbers !== undefined) {
+    view.dispatch({
+      effects: lineNumbersCompartment.reconfigure(getLineNumbersExtension(lineNumbers)),
+    });
+  }
+
   export function getContent(): string {
     return view?.state.doc.toString() ?? content;
   }
@@ -98,45 +116,75 @@
     width: 100%;
     overflow: hidden;
     position: relative;
+    display: flex;
+    flex-direction: column;
   }
 
   .editor-host :global(.cm-editor) {
     height: 100%;
     width: 100%;
+    display: flex;
+    flex-direction: column;
   }
 
   .editor-host :global(.cm-scroller) {
+    height: 100%;
+    overflow-y: auto;
     font-family: var(--font-mono);
     font-size: var(--editor-font-size, 15px);
-    line-height: 1.6;
-    padding: 28px clamp(16px, 5vw, 72px);
-    max-width: var(--editor-max-width, 760px);
+    line-height: 1.7;
+    display: flex;
+  }
+
+  .editor-host :global(.cm-gutters) {
+    background: transparent;
+    color: var(--fg-dim);
+    border-right: 1px solid var(--border);
+    padding: 36px 8px 36px 16px;
+    user-select: none;
+    flex-shrink: 0;
+  }
+
+  .editor-host :global(.cm-content) {
+    flex: 1 1 auto;
+    max-width: var(--editor-max-width, 780px);
     margin: 0 auto;
-    overflow-y: auto;
+    padding: 36px 32px 240px 32px;
+    box-sizing: border-box;
+    outline: none;
+    caret-color: var(--accent);
+  }
+
+  .editor-host :global(.cm-line) {
+    padding: 0 4px;
   }
 
   /* Inline math preview styling */
   .editor-host :global(.cm-math-inline) {
     background: var(--bg-elev);
     border-radius: 4px;
-    padding: 1px 5px;
+    padding: 1px 6px;
     display: inline-block;
     transition: background 0.15s ease;
+    border: 1px solid var(--border);
   }
 
   .editor-host :global(.cm-math-inline:hover) {
     background: var(--bg-surface);
+    border-color: var(--accent);
   }
 
   /* Block math preview styling */
   .editor-host :global(.cm-math-block) {
     display: block;
-    margin: 12px 0;
-    padding: 10px 16px;
+    margin: 12px auto;
+    padding: 12px 18px;
     background: var(--bg-elev);
     border-radius: var(--radius);
     text-align: center;
     overflow-x: auto;
+    max-width: 90%;
+    border: 1px solid var(--border);
   }
 
   .editor-host :global(.cm-math-error) {

@@ -87,6 +87,14 @@
         </span>
         <input type="checkbox" bind:checked={prefs.typewriter} />
       </div>
+
+      <div class="row toggle">
+        <span>
+          <strong>Line numbers</strong>
+          <small>Display line numbers in the gutter.</small>
+        </span>
+        <input type="checkbox" bind:checked={prefs.line_numbers} />
+      </div>
     </div>
   </div>
 {/if}

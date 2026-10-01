@@ -20,6 +20,9 @@ pub struct Prefs {
     pub wrap: bool,
     /// Typewriter (centered active line) scrolling.
     pub typewriter: bool,
+    /// Line numbers in the editor gutter.
+    #[serde(default)]
+    pub line_numbers: bool,
 }
 
 impl Default for Prefs {
@@ -30,6 +33,7 @@ impl Default for Prefs {
             tab_size: 2,
             wrap: true,
             typewriter: true,
+            line_numbers: false,
         }
     }
 }

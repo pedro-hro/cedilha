@@ -24,6 +24,7 @@
     tab_size: 2,
     wrap: true,
     typewriter: true,
+    line_numbers: false,
   };
   let settingsOpen = false;
   let editor: InstanceType<typeof Editor>;
@@ -220,6 +221,7 @@
       tabSize={prefs.tab_size}
       wrap={prefs.wrap}
       typewriter={prefs.typewriter}
+      lineNumbers={prefs.line_numbers}
       on:change={handleEditorChange}
     />
   </main>

@@ -5,7 +5,6 @@ use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use std::thread;
 
 use tauri::window::Window;
 
@@ -31,37 +30,28 @@ const MD_FILTERS: &[(&str, &[&str])] = &[
     ("All Files", &["*"]),
 ];
 
-/// Run a synchronous file-open dialog on a dedicated thread (rfd requires the
-/// GTK main loop, which lives on the app's UI thread).
-fn pick(title: &'static str) -> Option<PathBuf> {
-    thread::spawn(move || {
-        let mut dialog = rfd::FileDialog::new().set_title(title);
-        for &(name, exts) in MD_FILTERS {
-            dialog = dialog.add_filter(name, exts);
-        }
-        dialog.pick_file()
-    })
-    .join()
-    .unwrap_or(None)
+/// Run an asynchronous file-open dialog.
+async fn pick_async(title: &'static str) -> Option<PathBuf> {
+    let mut dialog = rfd::AsyncFileDialog::new().set_title(title);
+    for &(name, exts) in MD_FILTERS {
+        dialog = dialog.add_filter(name, exts);
+    }
+    dialog.pick_file().await.map(|f| f.path().to_path_buf())
 }
 
-/// Run a synchronous save-as dialog on a dedicated thread.
-fn save(title: &'static str) -> Option<PathBuf> {
-    thread::spawn(move || {
-        let mut dialog = rfd::FileDialog::new().set_title(title);
-        for &(name, exts) in MD_FILTERS {
-            dialog = dialog.add_filter(name, exts);
-        }
-        dialog.save_file()
-    })
-    .join()
-    .unwrap_or(None)
+/// Run an asynchronous save-as dialog.
+async fn save_async(title: &'static str) -> Option<PathBuf> {
+    let mut dialog = rfd::AsyncFileDialog::new().set_title(title);
+    for &(name, exts) in MD_FILTERS {
+        dialog = dialog.add_filter(name, exts);
+    }
+    dialog.save_file().await.map(|f| f.path().to_path_buf())
 }
 
 /// Open a file through the native OS dialog.
 #[tauri::command]
 pub async fn open_file(state: tauri::State<'_, AppState>) -> Result<LoadResult, String> {
-    let path = pick("Open Document");
+    let path = pick_async("Open Document").await;
     let Some(path) = path else {
         return Ok(LoadResult {
             path: None,
@@ -106,7 +96,7 @@ pub async fn save_document(
 /// Save under a new location using the native save dialog.
 #[tauri::command]
 pub async fn save_as_file(content: String, state: tauri::State<'_, AppState>) -> Result<Option<String>, String> {
-    let path = save("Save Document");
+    let path = save_async("Save Document").await;
     let Some(path) = path else {
         return Ok(None);
     };

@@ -10,6 +10,7 @@ export interface Prefs {
   tab_size: number;
   wrap: boolean;
   typewriter: boolean;
+  line_numbers?: boolean;
 }
 
 export interface LoadResult {

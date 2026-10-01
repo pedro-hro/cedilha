@@ -1,8 +1,9 @@
 // KaTeX-backed live math rendering for CodeMirror 6.
 //
 // Recognizes `$…$` inline math and `$$…$$` block math and renders it with
-// KaTeX. When the cursor enters the math expression, it smoothly expands into
-// editable raw LaTeX. When the cursor leaves, it renders as a polished math formula.
+// KaTeX. Single-line math smoothly collapses into an inline rendered formula
+// when the cursor leaves, and expands when clicked or navigated to.
+// Multi-line block math renders a clean KaTeX widget immediately below the formula.
 
 import type { Extension } from "@codemirror/state";
 import {
@@ -45,11 +46,11 @@ class MathWidget extends WidgetType {
       try {
         const pos = view.posAtDOM(wrap);
         view.dispatch({
-          selection: { anchor: Math.min(pos + 1, view.state.doc.length) },
+          selection: { anchor: Math.min(pos, view.state.doc.length) },
         });
         view.focus();
       } catch {
-        // Fallback if DOM position cannot be determined
+        // Fallback
       }
     });
 
@@ -109,13 +110,14 @@ function findMathSpans(text: string): MathSpan[] {
     }
   }
 
-  // Sort by starting document offset for CodeMirror's RangeSetBuilder
+  // Sort by starting document offset
   spans.sort((a, b) => a.from - b.from);
   return spans;
 }
 
 function buildDecorations(view: EditorView): DecorationSet {
-  const docText = view.state.doc.toString();
+  const doc = view.state.doc;
+  const docText = doc.toString();
   const spans = findMathSpans(docText);
   const selection = view.state.selection.main;
   const selFrom = selection.from;
@@ -130,13 +132,29 @@ function buildDecorations(view: EditorView): DecorationSet {
       continue;
     }
 
-    decorations.push(
-      Decoration.replace({
-        widget: new MathWidget(span.latex, span.isBlock),
-      }).range(span.from, span.to),
-    );
+    const startLine = doc.lineAt(span.from).number;
+    const endLine = doc.lineAt(span.to).number;
+
+    if (startLine === endLine) {
+      // Single-line math (both $...$ and single-line $$...$$):
+      // Safe to replace since it does NOT cross line boundaries
+      decorations.push(
+        Decoration.replace({
+          widget: new MathWidget(span.latex, span.isBlock),
+        }).range(span.from, span.to),
+      );
+    } else {
+      // Multi-line block math: place a preview widget directly at the end of the block
+      decorations.push(
+        Decoration.widget({
+          widget: new MathWidget(span.latex, true),
+          side: 1,
+        }).range(span.to),
+      );
+    }
   }
 
+  decorations.sort((a, b) => a.from - b.from);
   return Decoration.set(decorations, true);
 }
 
