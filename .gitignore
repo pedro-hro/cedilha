@@ -1,0 +1,15 @@
+.DS_Store
+node_modules
+/src-tauri/target
+/build
+*.log
+
+# SvelteKit
+.svelte-kit
+/out
+
+# Tauri
+src-tauri/gen/
+src-tauri/icons/*.png
+src-tauri/icons/*.ico
+src-tauri/icons/*.icns

@@ -1,0 +1,162 @@
+/* Cedilha — Omarchy / minimal theming.
+ *
+ * Every theme is expressed as CSS custom properties on :root[data-theme].
+ * The Rust backend persists the active theme and injects `data-theme` on the
+ * <html> element; components read the tokens instead of hard-coding colors.
+ */
+
+:root {
+  /* shared layout / type tokens */
+  --font-mono: "JetBrains Mono", "Iosevka", "Fira Code", "DejaVu Sans Mono",
+    "Ubuntu Mono", monospace;
+  --editor-max-width: 760px;
+  --radius: 6px;
+  --statusbar-height: 26px;
+}
+
+/* ----------------------------- Catppuccin Mocha ----------------------------- */
+:root[data-theme="catppuccin-mocha"] {
+  --bg: #1e1e2e;
+  --bg-elev: #282a36;
+  --bg-surface: #313444;
+  --fg: #cdd6f4;
+  --fg-dim: #9399b2;
+  --accent: #89b4fa;
+  --accent-2: #f5c2e7;
+  --danger: #f38ba8;
+  --success: #a6e3a1;
+  --warning: #fab387;
+  --border: #45475a;
+  --selection: #45475a;
+  --marker: #f9e2af;
+}
+
+/* -------------------------------- Catppuccin Latte -------------------------------- */
+:root[data-theme="catppuccin-latte"] {
+  --bg: #eff1f5;
+  --bg-elev: #e6e9ef;
+  --bg-surface: #dce0e8;
+  --fg: #4c4f69;
+  --fg-dim: #6c6f85;
+  --accent: #1e66f5;
+  --accent-2: #ea76cb;
+  --danger: #d20df3;
+  --success: #40a02b;
+  --warning: #fe640b;
+  --border: #ccd0da;
+  --selection: #ccd0da;
+  --marker: #df8e1d;
+}
+
+/* -------------------------------- Tokyo Night -------------------------------- */
+:root[data-theme="tokyo-night"] {
+  --bg: #1a1b26;
+  --bg-elev: #24283b;
+  --bg-surface: #2f3449;
+  --fg: #c0caf5;
+  --fg-dim: #9aa5ce;
+  --accent: #7aa2f7;
+  --accent-2: #bb9af7;
+  --danger: #f7768e;
+  --success: #9ece6a;
+  --warning: #e0af68;
+  --border: #33415b;
+  --selection: #33415b;
+  --marker: #e0af68;
+}
+
+/* --------------------------------- Gruvbox Dark --------------------------------- */
+:root[data-theme="gruvbox-dark"] {
+  --bg: #282828;
+  --bg-elev: #3c3836;
+  --bg-surface: #504945;
+  --fg: #ebdbb2;
+  --fg-dim: #d5c4a1;
+  --accent: #83a598;
+  --accent-2: #b8bbd9;
+  --danger: #fb4934;
+  --success: #b8bb26;
+  --warning: #fabd2f;
+  --border: #665c54;
+  --selection: #665c54;
+  --marker: #fabd2f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-mono);
+  font-size: var(--editor-font-size, 15px);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+
+::selection {
+  background: var(--selection);
+  color: var(--fg);
+}
+
+button,
+input,
+select {
+  font-family: inherit;
+  color: var(--fg);
+  background: var(--bg-elev);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 8px;
+}
+
+button {
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease;
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button.primary {
+  background: var(--accent);
+  color: var(--bg);
+  border-color: var(--accent);
+  font-weight: 600;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* Thin, theme-aware scrollbars for an unobtrusive look. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
