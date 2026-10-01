@@ -149,38 +149,4 @@
     outline: none;
     caret-color: var(--accent);
   }
-
-  /* Inline math preview styling */
-  .editor-host :global(.cm-math-inline) {
-    background: var(--bg-elev);
-    border-radius: 4px;
-    padding: 1px 6px;
-    display: inline-block;
-    transition: background 0.15s ease;
-    border: 1px solid var(--border);
-  }
-
-  .editor-host :global(.cm-math-inline:hover) {
-    background: var(--bg-surface);
-    border-color: var(--accent);
-  }
-
-  /* Block math preview styling */
-  .editor-host :global(.cm-math-block) {
-    display: block;
-    margin: 12px auto;
-    padding: 12px 18px;
-    background: var(--bg-elev);
-    border-radius: var(--radius);
-    text-align: center;
-    overflow-x: auto;
-    max-width: 90%;
-    border: 1px solid var(--border);
-  }
-
-  .editor-host :global(.cm-math-error) {
-    color: var(--danger);
-    font-family: var(--font-mono);
-    font-size: 0.9em;
-  }
 </style>

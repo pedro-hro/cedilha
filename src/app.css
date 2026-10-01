@@ -29,6 +29,7 @@
   --border: #45475a;
   --selection: #45475a;
   --marker: #f9e2af;
+  --active-line: rgba(255, 255, 255, 0.035);
 }
 
 /* -------------------------------- Catppuccin Latte -------------------------------- */
@@ -46,6 +47,7 @@
   --border: #ccd0da;
   --selection: #ccd0da;
   --marker: #df8e1d;
+  --active-line: rgba(0, 0, 0, 0.04);
 }
 
 /* -------------------------------- Tokyo Night -------------------------------- */
@@ -63,6 +65,7 @@
   --border: #33415b;
   --selection: #33415b;
   --marker: #e0af68;
+  --active-line: rgba(255, 255, 255, 0.035);
 }
 
 /* --------------------------------- Gruvbox Dark --------------------------------- */
@@ -80,6 +83,7 @@
   --border: #665c54;
   --selection: #665c54;
   --marker: #fabd2f;
+  --active-line: rgba(255, 255, 255, 0.035);
 }
 
 * {

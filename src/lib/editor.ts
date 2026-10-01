@@ -8,7 +8,6 @@ import { EditorView, keymap } from "@codemirror/view";
 import { standardKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { highlightActiveLine } from "@codemirror/view";
-import { mathExtension } from "./codemirror/math";
 import {
   type EditorOptions,
   wrapCompartment,
@@ -70,13 +69,13 @@ const baseTheme = EditorView.theme({
     color: "var(--fg-dim)",
   },
   ".cm-activeLine": {
-    backgroundColor: "var(--bg-elev)",
+    backgroundColor: "var(--active-line, rgba(255, 255, 255, 0.035))",
     borderRadius: "var(--radius)",
   },
   ".cm-activeLineGutter": {
     backgroundColor: "transparent",
     color: "var(--accent)",
-    fontWeight: "bold",
+    fontWeight: "600",
   },
 });
 
@@ -85,7 +84,6 @@ export function createEditor(opts: FullEditorOptions): EditorState {
     baseTheme,
     highlightActiveLine(),
     markdown({ markdownLanguage }),
-    mathExtension(),
     wrapCompartment.of(getWrapExtension(opts.wrap)),
     tabSizeCompartment.of(getTabSizeExtension(opts.tabSize)),
     typewriterCompartment.of(createTypewriterExtension(opts.typewriter)),
