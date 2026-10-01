@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import Editor from "./components/Editor.svelte";
+  import Preview from "./components/Preview.svelte";
   import StatusBar from "./components/StatusBar.svelte";
   import Settings from "./components/Settings.svelte";
   import * as api from "./lib/tauri";
@@ -14,10 +15,13 @@
     // Running in browser dev mode outside Tauri webview
   }
 
+  type ViewMode = "edit" | "split" | "preview";
+
   // ----- state -----
-  let content = "# Welcome to Cedilha\n\nCedilha is an opinionated, distraction-free **Markdown & LaTeX** editor built with Rust and Tauri for the Omarchy aesthetic.\n\n### Math Formulas\n\nInline math works directly: $E = mc^2$, or try the Pythagorean theorem: $a^2 + b^2 = c^2$.\n\nYou can also write centered block formulas:\n\n$$\nf(x) = \\int_{-\\infty}^{\\infty} \\hat{f}(\\xi)\\,e^{2 \\pi i \\xi x}\\,d\\xi\n$$\n\nClick on any math formula above to edit its raw LaTeX, and click away to see it render live!\n";
+  let content = "# Welcome to Cedilha\n\nCedilha is an opinionated, distraction-free **Markdown & LaTeX** editor built with Rust and Tauri for the Omarchy aesthetic.\n\n### Math Formulas\n\nInline math works directly: $E = mc^2$, or try the Pythagorean theorem: $a^2 + b^2 = c^2$.\n\nYou can also write centered block formulas:\n\n$$\nf(x) = \\int_{-\\infty}^{\\infty} \\hat{f}(\\xi)\\,e^{2 \\pi i \\xi x}\\,d\\xi\n$$\n\nToggle **Split view** in the top bar (or press `Ctrl+P`) to see live rendered HTML and KaTeX side-by-side!\n";
   let path: string | null = null;
   let dirty = false;
+  let viewMode: ViewMode = "edit";
   let prefs: Prefs = {
     theme: "catppuccin-mocha",
     font_size: 15,
@@ -154,7 +158,19 @@
     } else if (mod && e.key.toLowerCase() === "n") {
       e.preventDefault();
       newDoc();
-    } else if (mod && (e.key === "," || e.key === "p" && e.shiftKey)) {
+    } else if (mod && e.key === "1") {
+      e.preventDefault();
+      viewMode = "edit";
+    } else if (mod && e.key === "2") {
+      e.preventDefault();
+      viewMode = "split";
+    } else if (mod && e.key === "3") {
+      e.preventDefault();
+      viewMode = "preview";
+    } else if (mod && e.key.toLowerCase() === "p" && !e.shiftKey) {
+      e.preventDefault();
+      viewMode = viewMode === "edit" ? "split" : viewMode === "split" ? "preview" : "edit";
+    } else if (mod && (e.key === "," || (e.key === "p" && e.shiftKey))) {
       e.preventDefault();
       settingsOpen = !settingsOpen;
     }
@@ -193,6 +209,31 @@
       <span class="name">cedilha</span>
     </div>
 
+    <!-- Apostrophe-style View Mode Switcher -->
+    <div class="view-switcher" role="radiogroup" aria-label="View mode">
+      <button
+        class:active={viewMode === "edit"}
+        onclick={() => (viewMode = "edit")}
+        title="Code only (Ctrl+1)"
+      >
+        Edit
+      </button>
+      <button
+        class:active={viewMode === "split"}
+        onclick={() => (viewMode = "split")}
+        title="Side-by-side split (Ctrl+2)"
+      >
+        Split
+      </button>
+      <button
+        class:active={viewMode === "preview"}
+        onclick={() => (viewMode = "preview")}
+        title="Rendered preview only (Ctrl+3)"
+      >
+        Preview
+      </button>
+    </div>
+
     <nav class="actions">
       <button onclick={newDoc} title="New Document (Ctrl+N)">New <kbd>Ctrl+N</kbd></button>
       <button onclick={openFile} title="Open Document (Ctrl+O)">Open <kbd>Ctrl+O</kbd></button>
@@ -213,17 +254,31 @@
     {/if}
   </header>
 
-  <main class="workspace">
-    <Editor
-      bind:this={editor}
-      content={content}
-      fontSize={prefs.font_size}
-      tabSize={prefs.tab_size}
-      wrap={prefs.wrap}
-      typewriter={prefs.typewriter}
-      lineNumbers={prefs.line_numbers}
-      on:change={handleEditorChange}
-    />
+  <main class="workspace" class:split={viewMode === "split"}>
+    {#if viewMode === "edit" || viewMode === "split"}
+      <div class="pane editor-pane" class:half={viewMode === "split"}>
+        <Editor
+          bind:this={editor}
+          content={content}
+          fontSize={prefs.font_size}
+          tabSize={prefs.tab_size}
+          wrap={prefs.wrap}
+          typewriter={prefs.typewriter}
+          lineNumbers={prefs.line_numbers}
+          on:change={handleEditorChange}
+        />
+      </div>
+    {/if}
+
+    {#if viewMode === "split"}
+      <div class="split-divider"></div>
+    {/if}
+
+    {#if viewMode === "preview" || viewMode === "split"}
+      <div class="pane preview-pane" class:half={viewMode === "split"}>
+        <Preview {content} />
+      </div>
+    {/if}
   </main>
 
   <StatusBar
@@ -258,6 +313,7 @@
     border-bottom: 1px solid var(--border);
     flex: 0 0 auto;
     cursor: default;
+    gap: 12px;
   }
 
   .brand {
@@ -268,6 +324,7 @@
     color: var(--accent);
     font-size: 15px;
     letter-spacing: 0.5px;
+    flex: 0 0 auto;
   }
 
   .logo {
@@ -276,6 +333,38 @@
     font-family: serif;
     font-weight: bold;
     color: var(--accent);
+  }
+
+  /* Segmented View Switcher (Apostrophe style) */
+  .view-switcher {
+    display: flex;
+    background: var(--bg-surface);
+    border-radius: var(--radius);
+    padding: 2px;
+    border: 1px solid var(--border);
+    gap: 2px;
+  }
+
+  .view-switcher button {
+    background: transparent;
+    border: none;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 3px 12px;
+    color: var(--fg-dim);
+    border-radius: calc(var(--radius) - 2px);
+    transition: all 0.12s ease;
+    cursor: pointer;
+  }
+
+  .view-switcher button:hover {
+    color: var(--fg);
+  }
+
+  .view-switcher button.active {
+    background: var(--accent);
+    color: var(--bg);
+    font-weight: 700;
   }
 
   .actions {
@@ -332,7 +421,36 @@
     overflow: hidden;
     background: var(--bg);
     display: flex;
+    flex-direction: row;
+    position: relative;
+  }
+
+  .pane {
+    height: 100%;
+    overflow: hidden;
+    display: flex;
     flex-direction: column;
-    user-select: text;
+  }
+
+  .pane.editor-pane {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .pane.preview-pane {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .pane.half {
+    flex: 1 1 50%;
+    width: 50%;
+  }
+
+  .split-divider {
+    width: 1px;
+    background: var(--border);
+    flex: 0 0 1px;
+    height: 100%;
   }
 </style>
