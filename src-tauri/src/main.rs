@@ -48,6 +48,8 @@ fn main() {
             crate::commands::save_as_file,
             crate::commands::new_document,
             crate::commands::toggle_minimize,
+            crate::commands::toggle_maximize,
+            crate::commands::is_tiling_wm,
             crate::commands::get_prefs,
             crate::commands::save_prefs,
             crate::commands::get_omarchy_theme,

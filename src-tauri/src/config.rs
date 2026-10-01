@@ -34,6 +34,10 @@ pub struct Prefs {
     /// Max content column width in pixels (default: 1040).
     #[serde(default = "default_editor_max_width")]
     pub editor_max_width: u32,
+    /// Close / minimize / maximize buttons in the top bar: "auto" (hidden on tiling window
+    /// managers), "always" or "never".
+    #[serde(default = "default_window_controls")]
+    pub window_controls: String,
     /// View shown on launch: "edit", "split" or "preview".
     #[serde(default = "default_view")]
     pub default_view: String,
@@ -63,6 +67,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_window_controls() -> String {
+    "auto".to_string()
+}
+
 fn default_view() -> String {
     "edit".to_string()
 }
@@ -85,6 +93,7 @@ impl Default for Prefs {
             line_numbers: true,
             font_family: default_font_family(),
             editor_max_width: default_editor_max_width(),
+            window_controls: default_window_controls(),
             default_view: default_view(),
             keybindings: BTreeMap::new(),
         }
@@ -124,7 +133,7 @@ pub fn generate_toml(prefs: &Prefs) -> String {
             "\n# Keybinding overrides. Only actions you change are listed; remove a line to\n\
              # restore its default. Format: Ctrl+Shift+S, Alt+Enter, F3, ...\n\
              # Actions: cycle_view, new, open, save, save_as, settings, find, find_next, find_prev,\n\
-             # minimize, close\n\
+             # minimize, maximize, close\n\
              [keybindings]\n",
         );
         for (action, combos) in &prefs.keybindings {
@@ -156,6 +165,11 @@ tab_size = {}
 # Max content column width in pixels (default: 1040)
 editor_max_width = {}
 
+# Close / minimize / maximize buttons in the top bar. The window has no title bar of its
+# own, so these replace it: "auto" shows them except on tiling window managers
+# (Hyprland, sway, i3, ...), "always" or "never".
+window_controls = {}
+
 # Behavior
 # View shown on launch: "edit", "split" or "preview"
 default_view = {}
@@ -171,6 +185,7 @@ line_numbers = {}
         prefs.font_size,
         prefs.tab_size,
         prefs.editor_max_width,
+        quote(&prefs.window_controls),
         quote(&prefs.default_view),
         prefs.typewriter,
         prefs.line_numbers,

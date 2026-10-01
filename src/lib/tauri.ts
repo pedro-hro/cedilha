@@ -14,6 +14,8 @@ export interface Prefs {
   editor_max_width?: number;
   /** View on launch: "edit" | "split" | "preview". */
   default_view?: string;
+  /** Top-bar window buttons: "auto" | "always" | "never". */
+  window_controls?: string;
   /** Keybinding overrides: action id -> key combos. See lib/keybindings.ts. */
   keybindings?: Record<string, string[]>;
 }
@@ -62,6 +64,14 @@ export function newDocument(): Promise<string> {
 
 export function toggleMinimize(): Promise<void> {
   return invoke("toggle_minimize");
+}
+
+export function toggleMaximize(): Promise<void> {
+  return invoke("toggle_maximize");
+}
+
+export function isTilingWm(): Promise<boolean> {
+  return invoke("is_tiling_wm");
 }
 
 export interface OmarchyTheme {

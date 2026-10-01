@@ -15,6 +15,7 @@ export type ActionId =
   | "find_next"
   | "find_prev"
   | "minimize"
+  | "maximize"
   | "close";
 
 export interface ActionDef {
@@ -34,6 +35,7 @@ export const ACTIONS: ActionDef[] = [
   { id: "find_next", label: "Find next", defaults: ["F3", "Ctrl+G"] },
   { id: "find_prev", label: "Find previous", defaults: ["Shift+F3", "Ctrl+Shift+G"] },
   { id: "minimize", label: "Minimize window", defaults: ["Ctrl+M"] },
+  { id: "maximize", label: "Maximize / restore window", defaults: ["Ctrl+Shift+M"] },
   { id: "close", label: "Close window", defaults: ["Ctrl+Q", "Ctrl+W"] },
 ];
 

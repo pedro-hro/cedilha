@@ -22,7 +22,13 @@
   export let omarchyTheme: OmarchyTheme | null = null;
 
   type Choice = { value: string | number; label: string };
-  type PrefKey = "theme" | "font_size" | "tab_size" | "editor_max_width" | "default_view";
+  type PrefKey =
+    | "theme"
+    | "font_size"
+    | "tab_size"
+    | "editor_max_width"
+    | "default_view"
+    | "window_controls";
   type BoolKey = "typewriter" | "line_numbers";
   type Row =
     | { kind: "choice"; section: string; label: string; key: PrefKey; options: Choice[] }
@@ -91,6 +97,17 @@
         { value: "edit", label: "edit" },
         { value: "split", label: "split" },
         { value: "preview", label: "preview" },
+      ],
+    },
+    {
+      kind: "choice",
+      section: "startup",
+      label: "Window buttons",
+      key: "window_controls",
+      options: [
+        { value: "auto", label: "auto (hide on tiling WMs)" },
+        { value: "always", label: "always" },
+        { value: "never", label: "never" },
       ],
     },
     ...ACTIONS.map((action) => ({ kind: "key", section: "keybindings", action }) as Row),

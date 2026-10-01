@@ -30,6 +30,10 @@
   let preview: InstanceType<typeof Preview>;
   let stats = { words: 0, chars: 0, lines: 1 };
   let cursor = { line: 1, col: 1 };
+  // Window buttons replace the title bar we don't have. Hidden by default on tiling WMs.
+  let tiling = false;
+  $: showControls =
+    prefs.window_controls === "always" || (prefs.window_controls !== "never" && !tiling);
   $: docName = path ? path.split(/[/\\]/).pop() || path : "untitled";
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   // Two-way scroll sync. Whichever pane the user is scrolling owns the sync; scroll events
@@ -89,6 +93,8 @@
   // ----- lifecycle -----
   onMount(() => {
     let unlisten: UnlistenFn | undefined;
+
+    api.isTilingWm().then((t) => (tiling = t)).catch(() => {});
 
     api.getPrefs().then((p) => {
       applyPrefs(p);
@@ -390,6 +396,7 @@
       settingsOpen = !settingsOpen;
     },
     minimize: () => void api.toggleMinimize(),
+    maximize: () => void api.toggleMaximize(),
     close: () => void requestQuit(),
   };
 
@@ -484,6 +491,14 @@
       >
         settings <span class="key-badge">{hint("settings").replace(/\+/g, " ").toLowerCase()}</span>
       </button>
+
+      {#if showControls}
+        <div class="win-controls">
+          <button class="wc" aria-label="Minimize" title="Minimize ({hint('minimize')})" onclick={() => api.toggleMinimize()}>─</button>
+          <button class="wc" aria-label="Maximize" title="Maximize ({hint('maximize')})" onclick={() => api.toggleMaximize()}>▢</button>
+          <button class="wc close" aria-label="Close" title="Close ({hint('close')})" onclick={() => requestQuit()}>✕</button>
+        </div>
+      {/if}
     </div>
   </header>
 
@@ -662,6 +677,34 @@
   .key-badge {
     color: var(--fg-dim);
     opacity: 0.7;
+  }
+
+  /* Flat window buttons, only where there is no title bar to provide them. */
+  .win-controls {
+    display: flex;
+    align-items: stretch;
+    height: 100%;
+    margin-left: 4px;
+  }
+
+  .wc {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    width: 34px;
+    padding: 0;
+    color: var(--fg-dim);
+    font-size: var(--text-min);
+  }
+
+  .wc:hover {
+    color: var(--fg);
+    background: var(--bg-surface);
+  }
+
+  .wc.close:hover {
+    color: var(--bg);
+    background: var(--danger);
   }
 
   .workspace {

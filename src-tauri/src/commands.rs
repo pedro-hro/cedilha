@@ -261,6 +261,42 @@ pub async fn toggle_minimize(window: Window) {
     window.set_focus().ok();
 }
 
+/// Maximize the window, or restore it if it already is maximized.
+#[tauri::command]
+pub fn toggle_maximize(window: Window) {
+    if window.is_maximized().unwrap_or(false) {
+        window.unmaximize().ok();
+    } else {
+        window.maximize().ok();
+    }
+}
+
+/// Window managers that tile or otherwise draw their own borders and title handling, where
+/// our own close/minimize/maximize buttons would only be clutter.
+const TILING_DESKTOPS: &[&str] = &[
+    "hyprland", "sway", "i3", "bspwm", "river", "niri", "dwl", "awesome", "qtile",
+    "herbstluftwm", "leftwm", "xmonad", "miracle", "scroll", "mango", "swayfx",
+];
+
+fn is_tiling_desktop(value: &str) -> bool {
+    value
+        .split(':')
+        .any(|part| TILING_DESKTOPS.contains(&part.trim().to_lowercase().as_str()))
+}
+
+/// Whether we are running under a tiling window manager.
+#[tauri::command]
+pub fn is_tiling_wm() -> bool {
+    let by_name = ["XDG_CURRENT_DESKTOP", "XDG_SESSION_DESKTOP", "DESKTOP_SESSION"]
+        .iter()
+        .filter_map(|k| std::env::var(k).ok())
+        .any(|v| is_tiling_desktop(&v));
+    let by_socket = ["HYPRLAND_INSTANCE_SIGNATURE", "SWAYSOCK", "I3SOCK", "NIRI_SOCKET"]
+        .iter()
+        .any(|k| std::env::var_os(k).is_some());
+    by_name || by_socket
+}
+
 /// Fetch the currently persisted preferences.
 #[tauri::command]
 pub fn get_prefs(state: tauri::State<AppState>) -> crate::config::Prefs {
@@ -483,6 +519,17 @@ mod tests {
             .collect();
         assert!(leftovers.is_empty());
         std::fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn tiling_desktop_detection() {
+        assert!(is_tiling_desktop("Hyprland"));
+        assert!(is_tiling_desktop("sway"));
+        assert!(is_tiling_desktop("X-Cinnamon:i3"));
+        assert!(!is_tiling_desktop("GNOME"));
+        assert!(!is_tiling_desktop("ubuntu:GNOME"));
+        assert!(!is_tiling_desktop("KDE"));
+        assert!(!is_tiling_desktop(""));
     }
 
     #[test]
