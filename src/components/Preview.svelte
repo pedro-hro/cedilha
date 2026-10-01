@@ -13,6 +13,9 @@
       contextBefore: string;
       contextAfter: string;
       approxRatio: number;
+      isMath?: boolean;
+      mathMode?: "inline" | "display";
+      mathSubtext?: string;
     };
   }>();
 
@@ -34,9 +37,10 @@
 
   function renderKatexElement(el: HTMLElement) {
     if (el.dataset.katex) return;
-    el.dataset.katex = "1";
-    const raw = (el.textContent || "").trim();
+    const raw = (el.dataset.tex || el.textContent || "").trim();
     if (!raw) return;
+    el.dataset.tex = raw;
+    el.dataset.katex = "1";
 
     const isDisplay = el.classList.contains("math-display");
     const cacheKey = `${isDisplay ? "D:" : "I:"}${raw}`;
@@ -117,6 +121,13 @@
     );
 
     if (mathEls.length === 0) return;
+
+    for (let i = 0; i < mathEls.length; i++) {
+      const el = mathEls[i];
+      if (!el.dataset.tex) {
+        el.dataset.tex = (el.textContent || "").trim();
+      }
+    }
 
     // For short documents (<= 30 equations), render immediately in one tick
     if (mathEls.length <= 30) {
@@ -216,12 +227,146 @@
     }
   }
 
+  function getMathElement(node: Node | null): HTMLElement | null {
+    if (!node) return null;
+    const el = node instanceof HTMLElement ? node : node.parentElement;
+    return el?.closest<HTMLElement>(".math-inline, .math-display, .math") || null;
+  }
+
+  function getRangeMarkdownText(range: Range): string {
+    if (range.collapsed) return "";
+
+    const root =
+      (range.commonAncestorContainer instanceof HTMLElement
+        ? range.commonAncestorContainer
+        : range.commonAncestorContainer?.parentElement) || container;
+
+    if (!root) return range.toString();
+
+    const mathEls = root.querySelectorAll<HTMLElement>(".math-inline, .math-display, .math");
+    let hasIntersectingMath = false;
+    for (let i = 0; i < mathEls.length; i++) {
+      if (range.intersectsNode(mathEls[i])) {
+        hasIntersectingMath = true;
+        break;
+      }
+    }
+
+    if (!hasIntersectingMath) {
+      return range.toString();
+    }
+
+    try {
+      const clone = range.cloneContents();
+      const mathInClone = clone.querySelectorAll<HTMLElement>(
+        ".math-inline, .math-display, .math",
+      );
+      for (let i = 0; i < mathInClone.length; i++) {
+        const el = mathInClone[i];
+        const tex =
+          el.dataset.tex ||
+          el.querySelector("annotation[encoding='application/x-tex']")?.textContent?.trim() ||
+          "";
+        const isDisplay = el.classList.contains("math-display");
+        const replacement = document.createTextNode(
+          isDisplay ? `$$${tex}$$` : `$${tex}$`,
+        );
+        el.parentNode?.replaceChild(replacement, el);
+      }
+      return clone.textContent || "";
+    } catch {
+      return range.toString();
+    }
+  }
+
   function handleSelection() {
     const sel = window.getSelection();
-    if (!sel || sel.isCollapsed || !container) return;
+    if (!sel || !container) return;
     if (!container.contains(sel.anchorNode)) return;
 
-    const text = sel.toString().trim();
+    let range: Range;
+    try {
+      if (sel.rangeCount === 0) return;
+      range = sel.getRangeAt(0);
+    } catch {
+      return;
+    }
+
+    const startMath = getMathElement(range.startContainer);
+    const endMath = getMathElement(range.endContainer);
+
+    // If selection is collapsed, only trigger if user clicked a display math equation
+    if (sel.isCollapsed) {
+      if (!startMath || !startMath.classList.contains("math-display")) {
+        return;
+      }
+    }
+
+    // Case 1: Selection is inside or covers a single math element
+    if (startMath && (startMath === endMath || !endMath)) {
+      const mathEl = startMath;
+      const rawTex =
+        mathEl.dataset.tex ||
+        mathEl.querySelector("annotation[encoding='application/x-tex']")?.textContent?.trim() ||
+        (mathEl.dataset.katex ? "" : mathEl.textContent?.trim()) ||
+        "";
+
+      if (!rawTex) return;
+
+      const isDisplay = mathEl.classList.contains("math-display");
+      const selText = sel.toString().trim();
+
+      let approxRatio = 0;
+      let contextBefore = "";
+      let contextAfter = "";
+
+      try {
+        const rect = mathEl.getBoundingClientRect();
+        const containerRect = scrollContainer.getBoundingClientRect();
+        const scrollTop = scrollContainer.scrollTop;
+        const scrollHeight = scrollContainer.scrollHeight;
+        const offset = scrollTop + (rect.top - containerRect.top);
+        approxRatio = scrollHeight > 0 ? offset / scrollHeight : 0;
+
+        const block =
+          mathEl.closest<HTMLElement>(
+            "p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th",
+          ) || mathEl.parentElement;
+
+        if (block) {
+          const preRange = document.createRange();
+          preRange.setStart(block, 0);
+          preRange.setEndBefore(mathEl);
+          contextBefore = getRangeMarkdownText(preRange).slice(-40);
+
+          const postRange = document.createRange();
+          postRange.setStartAfter(mathEl);
+          postRange.setEnd(block, block.childNodes.length);
+          contextAfter = getRangeMarkdownText(postRange).slice(0, 40);
+        }
+      } catch {
+        // fallback
+      }
+
+      let mathSubtext: string | undefined;
+      if (selText && rawTex.includes(selText) && selText.length >= 2 && selText !== rawTex) {
+        mathSubtext = selText;
+      }
+
+      dispatch("previewSelect", {
+        text: rawTex,
+        isMath: true,
+        mathMode: isDisplay ? "display" : "inline",
+        mathSubtext,
+        contextBefore,
+        contextAfter,
+        approxRatio,
+      });
+      return;
+    }
+
+    // Case 2: General text selection (may span across text and math elements)
+    const text = getRangeMarkdownText(range).trim();
     if (!text) return;
 
     let approxRatio = 0;
@@ -229,7 +374,6 @@
     let contextAfter = "";
 
     try {
-      const range = sel.getRangeAt(0);
       const rect = range.getBoundingClientRect();
       const containerRect = scrollContainer.getBoundingClientRect();
       const scrollTop = scrollContainer.scrollTop;
@@ -238,7 +382,7 @@
       approxRatio = scrollHeight > 0 ? offset / scrollHeight : 0;
 
       const block =
-        range.startContainer.parentElement?.closest(
+        range.startContainer.parentElement?.closest<HTMLElement>(
           "p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th",
         ) || range.startContainer.parentElement;
 
@@ -246,12 +390,12 @@
         const preRange = range.cloneRange();
         preRange.setStart(block, 0);
         preRange.setEnd(range.startContainer, range.startOffset);
-        contextBefore = preRange.toString().slice(-40);
+        contextBefore = getRangeMarkdownText(preRange).slice(-40);
 
         const postRange = range.cloneRange();
         postRange.setStart(range.endContainer, range.endOffset);
         postRange.setEnd(block, block.childNodes.length);
-        contextAfter = postRange.toString().slice(0, 40);
+        contextAfter = getRangeMarkdownText(postRange).slice(0, 40);
       }
     } catch {
       // fallback

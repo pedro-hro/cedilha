@@ -109,6 +109,120 @@
     }
   }
 
+  function findMathMatch(
+    docText: string,
+    rawTex: string,
+    mathMode: "inline" | "display",
+    contextBefore = "",
+    contextAfter = "",
+    approxRatio = 0,
+    subtext?: string,
+  ): { from: number; to: number } | null {
+    if (!rawTex) return null;
+
+    const cleanTex = rawTex.trim();
+    const targetOffset = Math.floor(docText.length * approxRatio);
+    const candidates: Array<{ idx: number; score: number }> = [];
+
+    let pos = docText.indexOf(cleanTex);
+    while (pos !== -1) {
+      let score = 0;
+      const dist = Math.abs(pos - targetOffset);
+      score -= (dist / (docText.length || 1)) * 50;
+
+      let b = pos;
+      while (
+        b > 0 &&
+        (docText[b - 1] === " " || docText[b - 1] === "\t" || docText[b - 1] === "\n")
+      ) {
+        b--;
+      }
+      const isEnclosedDisplay = b >= 2 && docText.slice(b - 2, b) === "$$";
+      const isEnclosedInline = b >= 1 && docText[b - 1] === "$";
+
+      if (mathMode === "display" && isEnclosedDisplay) score += 100;
+      else if (mathMode === "inline" && isEnclosedInline) score += 100;
+      else if (isEnclosedInline || isEnclosedDisplay) score += 50;
+
+      if (contextBefore) {
+        const windowBefore = docText.slice(Math.max(0, pos - 80), pos);
+        const cleanBefore = contextBefore.trim().slice(-25);
+        if (cleanBefore && windowBefore.includes(cleanBefore)) {
+          score += 200;
+        }
+      }
+
+      if (contextAfter) {
+        const windowAfter = docText.slice(
+          pos + cleanTex.length,
+          Math.min(docText.length, pos + cleanTex.length + 80),
+        );
+        const cleanAfter = contextAfter.trim().slice(0, 25);
+        if (cleanAfter && windowAfter.includes(cleanAfter)) {
+          score += 200;
+        }
+      }
+
+      candidates.push({ idx: pos, score });
+      pos = docText.indexOf(cleanTex, pos + 1);
+    }
+
+    if (candidates.length === 0) {
+      const partial = cleanTex.slice(0, Math.min(30, cleanTex.length)).trim();
+      if (partial.length >= 5) {
+        let pPos = docText.indexOf(partial);
+        while (pPos !== -1) {
+          const dist = Math.abs(pPos - targetOffset);
+          candidates.push({ idx: pPos, score: -dist });
+          pPos = docText.indexOf(partial, pPos + 1);
+        }
+      }
+    }
+
+    if (candidates.length === 0) return null;
+
+    candidates.sort((a, b) => b.score - a.score);
+    const best = candidates[0].idx;
+
+    let from = best;
+    let to = best + cleanTex.length;
+
+    let b = best;
+    while (
+      b > 0 &&
+      (docText[b - 1] === " " || docText[b - 1] === "\t" || docText[b - 1] === "\n")
+    ) {
+      b--;
+    }
+    if (b >= 2 && docText.slice(b - 2, b) === "$$") {
+      from = b - 2;
+    } else if (b >= 1 && docText[b - 1] === "$") {
+      from = b - 1;
+    }
+
+    let e = to;
+    while (
+      e < docText.length &&
+      (docText[e] === " " || docText[e] === "\t" || docText[e] === "\n")
+    ) {
+      e++;
+    }
+    if (e + 2 <= docText.length && docText.slice(e, e + 2) === "$$") {
+      to = e + 2;
+    } else if (e < docText.length && docText[e] === "$") {
+      to = e + 1;
+    }
+
+    if (subtext && cleanTex.includes(subtext)) {
+      const subIdx = cleanTex.indexOf(subtext);
+      if (subIdx !== -1) {
+        return { from: best + subIdx, to: best + subIdx + subtext.length };
+      }
+    }
+
+    return { from, to };
+  }
+
   function findBestMatch(
     docText: string,
     text: string,
@@ -163,18 +277,21 @@
       const firstWord = words[0];
       const lastWord = words[words.length - 1];
       let wPos = docText.indexOf(firstWord);
+      let bestEnd = -1;
       while (wPos !== -1) {
         const dist = Math.abs(wPos - targetOffset);
-        const windowEnd = Math.min(docText.length, wPos + text.length + 50);
+        const windowEnd = Math.min(docText.length, wPos + text.length + 80);
         const slice = docText.slice(wPos, windowEnd);
-        if (slice.includes(lastWord) && dist < bestDist) {
+        const lastIdx = slice.lastIndexOf(lastWord);
+        if (lastIdx !== -1 && dist < bestDist) {
           bestDist = dist;
           bestIdx = wPos;
+          bestEnd = wPos + lastIdx + lastWord.length;
         }
         wPos = docText.indexOf(firstWord, wPos + 1);
       }
-      if (bestIdx !== -1) {
-        return { from: bestIdx, to: bestIdx + text.length };
+      if (bestIdx !== -1 && bestEnd !== -1) {
+        return { from: bestIdx, to: bestEnd };
       }
     }
 
@@ -186,16 +303,36 @@
     contextBefore?: string;
     contextAfter?: string;
     approxRatio?: number;
+    isMath?: boolean;
+    mathMode?: "inline" | "display";
+    mathSubtext?: string;
   }) {
     if (!view) return;
     const docStr = view.state.doc.toString();
-    const match = findBestMatch(
-      docStr,
-      detail.text,
-      detail.contextBefore,
-      detail.contextAfter,
-      detail.approxRatio ?? 0,
-    );
+    let match: { from: number; to: number } | null = null;
+
+    if (detail.isMath) {
+      match = findMathMatch(
+        docStr,
+        detail.text,
+        detail.mathMode || "inline",
+        detail.contextBefore,
+        detail.contextAfter,
+        detail.approxRatio ?? 0,
+        detail.mathSubtext,
+      );
+    }
+
+    if (!match) {
+      match = findBestMatch(
+        docStr,
+        detail.text,
+        detail.contextBefore,
+        detail.contextAfter,
+        detail.approxRatio ?? 0,
+      );
+    }
+
     if (match) {
       view.dispatch({
         selection: { anchor: match.from, head: match.to },
