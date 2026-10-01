@@ -1,6 +1,6 @@
 [package]
 name = "cedilha"
-version = "0.1.0"
+version = "0.1.1"
 description = "A minimalist, distraction-free Markdown & LaTeX editor for the Omarchy aesthetic"
 authors = ["Cedilha contributors"]
 license = "MIT"
