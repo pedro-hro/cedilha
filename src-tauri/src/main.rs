@@ -7,6 +7,9 @@ mod config;
 mod omarchy;
 
 fn main() {
+    #[cfg(target_os = "linux")]
+    std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+
     let initial_prefs = config::load_once().unwrap_or_default();
 
     tauri::Builder::default()

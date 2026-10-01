@@ -52,10 +52,27 @@
     }
   }
 
+  let isScrolling = false;
+  let scrollSettleTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function onScroll() {
+    isScrolling = true;
+    if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
+    scrollSettleTimer = setTimeout(() => {
+      isScrolling = false;
+      if (renderQueue.length > 0 && queueRaf === null) {
+        queueRaf = requestAnimationFrame(flushRenderQueue);
+      }
+    }, 100);
+  }
+
   function flushRenderQueue() {
     queueRaf = null;
+    if (isScrolling) {
+      // Never mutate DOM during active scroll motion; wait until scroll settles
+      return;
+    }
     const start = performance.now();
-    // Maintain a strict 8ms maximum budget per frame so scrolling never drops frames
     while (renderQueue.length > 0 && performance.now() - start < 8) {
       const el = renderQueue.shift()!;
       renderKatexElement(el);
@@ -105,7 +122,7 @@
               hasNew = true;
             }
           }
-          if (hasNew && queueRaf === null) {
+          if (!isScrolling && hasNew && queueRaf === null) {
             queueRaf = requestAnimationFrame(flushRenderQueue);
           }
         },
@@ -189,7 +206,7 @@
   });
 </script>
 
-<div bind:this={scrollContainer} class="preview-container" class:centered>
+<div bind:this={scrollContainer} on:scroll={onScroll} class="preview-container" class:centered>
   <article bind:this={container} class="markdown-body">
     {@html renderedHtml}
   </article>
