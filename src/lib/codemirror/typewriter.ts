@@ -12,11 +12,19 @@ export function createTypewriterExtension(enabled: boolean): Extension {
     return [];
   }
 
+  let rafId: number | null = null;
+
   return EditorView.updateListener.of((update: ViewUpdate) => {
-    if ((update.docChanged || update.selectionSet) && update.view.hasFocus) {
+    // Only center when typing or single cursor move, not while dragging selection
+    const isSingleCursor = update.state.selection.main.empty;
+    if ((update.docChanged || (update.selectionSet && isSingleCursor)) && update.view.hasFocus) {
       const head = update.state.selection.main.head;
       const view = update.view;
-      requestAnimationFrame(() => {
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+      rafId = requestAnimationFrame(() => {
+        rafId = null;
         try {
           view.dispatch({
             effects: EditorView.scrollIntoView(head, { y: "center" }),

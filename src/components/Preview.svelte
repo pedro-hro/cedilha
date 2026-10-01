@@ -5,27 +5,63 @@
 
   export let content = "";
   export let centered = false;
+  export let active = true;
 
   let renderedHtml = "";
   let container: HTMLElement;
   let scrollContainer: HTMLDivElement;
   let mathObserver: IntersectionObserver | null = null;
-  let idleTimeout: ReturnType<typeof setTimeout> | null = null;
   let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
   let currentRequestId = 0;
+  let lastRenderedRaw = "";
+  let needsRender = false;
+
+  // Cache rendered KaTeX formulas to prevent re-parsing thousands of identical expressions
+  const mathCache = new Map<string, string>();
+
+  // Budgeted render queue to guarantee 60fps even during rapid scrolling
+  let renderQueue: HTMLElement[] = [];
+  let queueRaf: number | null = null;
 
   function renderKatexElement(el: HTMLElement) {
     if (el.dataset.katex) return;
     el.dataset.katex = "1";
-    const raw = el.textContent || "";
+    const raw = (el.textContent || "").trim();
+    if (!raw) return;
+
     const isDisplay = el.classList.contains("math-display");
+    const cacheKey = `${isDisplay ? "D:" : "I:"}${raw}`;
+
+    const cached = mathCache.get(cacheKey);
+    if (cached !== undefined) {
+      el.innerHTML = cached;
+      return;
+    }
+
     try {
-      katex.render(raw.trim(), el, {
+      const html = katex.renderToString(raw, {
         displayMode: isDisplay,
         throwOnError: false,
+        strict: false,
+        trust: true,
       });
+      mathCache.set(cacheKey, html);
+      el.innerHTML = html;
     } catch {
-      // Keep fallback unrendered text on syntax error
+      // Keep fallback text on parse failure
+    }
+  }
+
+  function flushRenderQueue() {
+    queueRaf = null;
+    const start = performance.now();
+    // Maintain a strict 8ms maximum budget per frame so scrolling never drops frames
+    while (renderQueue.length > 0 && performance.now() - start < 8) {
+      const el = renderQueue.shift()!;
+      renderKatexElement(el);
+    }
+    if (renderQueue.length > 0) {
+      queueRaf = requestAnimationFrame(flushRenderQueue);
     }
   }
 
@@ -36,9 +72,10 @@
       mathObserver.disconnect();
       mathObserver = null;
     }
-    if (idleTimeout) {
-      clearTimeout(idleTimeout);
-      idleTimeout = null;
+    renderQueue = [];
+    if (queueRaf !== null) {
+      cancelAnimationFrame(queueRaf);
+      queueRaf = null;
     }
 
     const mathEls = container.querySelectorAll<HTMLElement>(
@@ -47,30 +84,34 @@
 
     if (mathEls.length === 0) return;
 
-    // For documents with few equations (<= 40), render all immediately in one go
-    if (mathEls.length <= 40) {
+    // For short documents (<= 30 equations), render immediately in one tick
+    if (mathEls.length <= 30) {
       for (let i = 0; i < mathEls.length; i++) {
         renderKatexElement(mathEls[i]);
       }
       return;
     }
 
-    // For large documents (e.g. books with thousands of equations):
-    // 1. Observe visible equations in viewport with 400px margin for instant display
+    // For large documents, strictly render on-demand as equations approach the viewport
     if (typeof IntersectionObserver !== "undefined") {
       mathObserver = new IntersectionObserver(
         (entries) => {
+          let hasNew = false;
           for (const entry of entries) {
             if (entry.isIntersecting) {
               const target = entry.target as HTMLElement;
               mathObserver?.unobserve(target);
-              renderKatexElement(target);
+              renderQueue.push(target);
+              hasNew = true;
             }
+          }
+          if (hasNew && queueRaf === null) {
+            queueRaf = requestAnimationFrame(flushRenderQueue);
           }
         },
         {
           root: scrollContainer || null,
-          rootMargin: "400px 0px 400px 0px",
+          rootMargin: "350px 0px 350px 0px",
         },
       );
 
@@ -78,27 +119,6 @@
         mathObserver.observe(mathEls[i]);
       }
     }
-
-    // 2. Background progressive rendering for any off-screen equations
-    let idleIndex = 0;
-    function processIdleBatch() {
-      if (!container) return;
-      const pending = container.querySelectorAll<HTMLElement>(
-        ".math-inline:not([data-katex]), .math-display:not([data-katex])",
-      );
-      if (pending.length === 0) return;
-
-      const startTime = performance.now();
-      while (idleIndex < pending.length && performance.now() - startTime < 10) {
-        renderKatexElement(pending[idleIndex++]);
-      }
-
-      if (idleIndex < pending.length) {
-        idleTimeout = setTimeout(processIdleBatch, 20);
-      }
-    }
-
-    idleTimeout = setTimeout(processIdleBatch, 100);
   }
 
   async function updatePreview(raw: string, immediate = false) {
@@ -109,6 +129,18 @@
 
     if (!raw.trim()) {
       renderedHtml = '<div class="preview-empty">No content to preview</div>';
+      lastRenderedRaw = "";
+      needsRender = false;
+      return;
+    }
+
+    if (raw === lastRenderedRaw) {
+      needsRender = false;
+      return;
+    }
+
+    if (!active) {
+      needsRender = true;
       return;
     }
 
@@ -118,6 +150,8 @@
       try {
         const html = await api.renderMarkdown(raw);
         if (reqId === currentRequestId) {
+          lastRenderedRaw = raw;
+          needsRender = false;
           renderedHtml = html;
           await tick();
           if (reqId === currentRequestId) {
@@ -131,20 +165,26 @@
       }
     };
 
-    if (immediate) {
+    // Adapt debounce based on file size: larger documents (>100KB) debounce by 400ms
+    // to avoid layout thrashing during typing, while small documents update in 150ms.
+    const delay = immediate ? 0 : raw.length > 100_000 ? 400 : 150;
+    if (delay === 0) {
       await doRender();
     } else {
-      debounceTimeout = setTimeout(doRender, 150);
+      debounceTimeout = setTimeout(doRender, delay);
     }
   }
 
   $: {
-    updatePreview(content, renderedHtml === "");
+    // When content changes or when becoming active, update preview
+    if (content !== lastRenderedRaw || needsRender) {
+      updatePreview(content, renderedHtml === "" || (active && needsRender));
+    }
   }
 
   onDestroy(() => {
     if (debounceTimeout) clearTimeout(debounceTimeout);
-    if (idleTimeout) clearTimeout(idleTimeout);
+    if (queueRaf !== null) cancelAnimationFrame(queueRaf);
     if (mathObserver) mathObserver.disconnect();
   });
 </script>
@@ -174,6 +214,21 @@
     font-family: var(--font-mono);
     line-height: 1.7;
     font-size: var(--editor-font-size, 15px);
+  }
+
+  /* Browser layout containment: off-screen blocks skip style/layout/paint entirely */
+  .markdown-body :global(p),
+  .markdown-body :global(blockquote),
+  .markdown-body :global(table),
+  .markdown-body :global(pre),
+  .markdown-body :global(ul),
+  .markdown-body :global(ol),
+  .markdown-body :global(h1),
+  .markdown-body :global(h2),
+  .markdown-body :global(h3),
+  .markdown-body :global(h4) {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 35px;
   }
 
   .preview-container.centered .markdown-body {

@@ -347,29 +347,37 @@
   </header>
 
   <main class="workspace" class:split={viewMode === "split"}>
-    {#if viewMode === "edit" || viewMode === "split"}
-      <div class="pane editor-pane" class:half={viewMode === "split"}>
-        <Editor
-          bind:this={editor}
-          content={content}
-          fontSize={prefs.font_size}
-          tabSize={prefs.tab_size}
-          typewriter={prefs.typewriter}
-          lineNumbers={prefs.line_numbers}
-          on:change={handleEditorChange}
-        />
-      </div>
-    {/if}
+    <div
+      class="pane editor-pane"
+      class:half={viewMode === "split"}
+      class:hidden={viewMode === "preview"}
+    >
+      <Editor
+        bind:this={editor}
+        content={content}
+        fontSize={prefs.font_size}
+        tabSize={prefs.tab_size}
+        typewriter={prefs.typewriter}
+        lineNumbers={prefs.line_numbers}
+        on:change={handleEditorChange}
+      />
+    </div>
 
     {#if viewMode === "split"}
       <div class="split-divider"></div>
     {/if}
 
-    {#if viewMode === "preview" || viewMode === "split"}
-      <div class="pane preview-pane" class:half={viewMode === "split"}>
-        <Preview {content} centered={viewMode === "preview"} />
-      </div>
-    {/if}
+    <div
+      class="pane preview-pane"
+      class:half={viewMode === "split"}
+      class:hidden={viewMode === "edit"}
+    >
+      <Preview
+        {content}
+        centered={viewMode === "preview"}
+        active={viewMode !== "edit"}
+      />
+    </div>
   </main>
 
   <StatusBar
@@ -560,6 +568,10 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+  }
+
+  .pane.hidden {
+    display: none !important;
   }
 
   .pane.editor-pane {
