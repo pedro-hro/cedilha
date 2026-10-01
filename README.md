@@ -12,6 +12,10 @@ An opinionated, distraction-free **Markdown & LaTeX** editor built with **Rust**
 - **Omarchy / Hyprland Native:** Borderless window chrome with draggable header, letting your window manager handle borders and gaps.
 - **Distraction-Free Typewriter Scrolling:** Keeps the active cursor line vertically centered on the viewport.
 - **Real-Time Word & Reading Stats:** Live word count, character count, line count, and estimated reading time.
+- **Apostrophe-Style View Modes:**
+  - **Edit:** Distraction-free, full-width Markdown editor.
+  - **Split:** Side-by-side view with live rendered HTML and KaTeX preview on the right.
+  - **Preview:** Full-width rendered reading view.
 - **Theming:** Built-in community palettes:
   - Catppuccin Mocha (Dark)
   - Catppuccin Latte (Light)
@@ -25,6 +29,10 @@ An opinionated, distraction-free **Markdown & LaTeX** editor built with **Rust**
 
 | Shortcut | Action |
 | :--- | :--- |
+| `Ctrl + 1` | Edit Mode (Code only) |
+| `Ctrl + 2` | Split Mode (Side-by-side) |
+| `Ctrl + 3` | Preview Mode (Rendered view) |
+| `Ctrl + P` | Cycle View Modes (Edit ↔ Split ↔ Preview) |
 | `Ctrl + N` | New Document |
 | `Ctrl + O` | Open Document |
 | `Ctrl + S` | Save Document |
