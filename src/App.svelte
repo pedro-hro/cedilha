@@ -376,6 +376,11 @@
         {content}
         centered={viewMode === "preview"}
         active={viewMode !== "edit"}
+        on:previewSelect={(e) => {
+          if (viewMode === "split" && editor) {
+            editor.scrollToText(e.detail);
+          }
+        }}
       />
     </div>
   </main>

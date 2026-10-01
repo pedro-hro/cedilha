@@ -94,6 +94,102 @@
       view.setState(state);
     }
   }
+
+  function findBestMatch(
+    docText: string,
+    text: string,
+    contextBefore = "",
+    contextAfter = "",
+    approxRatio = 0,
+  ): { from: number; to: number } | null {
+    if (!text) return null;
+
+    if (contextBefore && contextAfter) {
+      const query = contextBefore + text + contextAfter;
+      const idx = docText.indexOf(query);
+      if (idx !== -1) {
+        return {
+          from: idx + contextBefore.length,
+          to: idx + contextBefore.length + text.length,
+        };
+      }
+    }
+
+    if (contextBefore) {
+      const query = contextBefore.slice(-15) + text;
+      const idx = docText.indexOf(query);
+      if (idx !== -1) {
+        return {
+          from: idx + contextBefore.slice(-15).length,
+          to: idx + contextBefore.slice(-15).length + text.length,
+        };
+      }
+    }
+
+    const targetOffset = Math.floor(docText.length * approxRatio);
+    let bestIdx = -1;
+    let bestDist = Infinity;
+
+    let pos = docText.indexOf(text);
+    while (pos !== -1) {
+      const dist = Math.abs(pos - targetOffset);
+      if (dist < bestDist) {
+        bestDist = dist;
+        bestIdx = pos;
+      }
+      pos = docText.indexOf(text, pos + 1);
+    }
+
+    if (bestIdx !== -1) {
+      return { from: bestIdx, to: bestIdx + text.length };
+    }
+
+    const words = text.split(/\s+/).filter(Boolean);
+    if (words.length >= 2) {
+      const firstWord = words[0];
+      const lastWord = words[words.length - 1];
+      let wPos = docText.indexOf(firstWord);
+      while (wPos !== -1) {
+        const dist = Math.abs(wPos - targetOffset);
+        const windowEnd = Math.min(docText.length, wPos + text.length + 50);
+        const slice = docText.slice(wPos, windowEnd);
+        if (slice.includes(lastWord) && dist < bestDist) {
+          bestDist = dist;
+          bestIdx = wPos;
+        }
+        wPos = docText.indexOf(firstWord, wPos + 1);
+      }
+      if (bestIdx !== -1) {
+        return { from: bestIdx, to: bestIdx + text.length };
+      }
+    }
+
+    return null;
+  }
+
+  export function scrollToText(detail: {
+    text: string;
+    contextBefore?: string;
+    contextAfter?: string;
+    approxRatio?: number;
+  }) {
+    if (!view) return;
+    const docStr = view.state.doc.toString();
+    const match = findBestMatch(
+      docStr,
+      detail.text,
+      detail.contextBefore,
+      detail.contextAfter,
+      detail.approxRatio ?? 0,
+    );
+    if (match) {
+      view.dispatch({
+        selection: { anchor: match.from, head: match.to },
+        effects: [EditorView.scrollIntoView(match.from, { y: "center" })],
+      });
+      view.focus();
+    }
+  }
 </script>
 
 <div bind:this={host} class="editor-host" style="--editor-font-size: {fontSize}px;"></div>

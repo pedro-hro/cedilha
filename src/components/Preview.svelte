@@ -1,11 +1,20 @@
 <script lang="ts">
-  import { onDestroy, tick } from "svelte";
+  import { onDestroy, tick, createEventDispatcher } from "svelte";
   import katex from "katex";
   import * as api from "../lib/tauri";
 
   export let content = "";
   export let centered = false;
   export let active = true;
+
+  const dispatch = createEventDispatcher<{
+    previewSelect: {
+      text: string;
+      contextBefore: string;
+      contextAfter: string;
+      approxRatio: number;
+    };
+  }>();
 
   let renderedHtml = "";
   let container: HTMLElement;
@@ -199,6 +208,55 @@
     }
   }
 
+  function handleSelection() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !container) return;
+    if (!container.contains(sel.anchorNode)) return;
+
+    const text = sel.toString().trim();
+    if (!text) return;
+
+    let approxRatio = 0;
+    let contextBefore = "";
+    let contextAfter = "";
+
+    try {
+      const range = sel.getRangeAt(0);
+      const rect = range.getBoundingClientRect();
+      const containerRect = scrollContainer.getBoundingClientRect();
+      const scrollTop = scrollContainer.scrollTop;
+      const scrollHeight = scrollContainer.scrollHeight;
+      const offset = scrollTop + (rect.top - containerRect.top);
+      approxRatio = scrollHeight > 0 ? offset / scrollHeight : 0;
+
+      const block =
+        range.startContainer.parentElement?.closest(
+          "p, h1, h2, h3, h4, h5, h6, li, blockquote, td, th",
+        ) || range.startContainer.parentElement;
+
+      if (block) {
+        const preRange = range.cloneRange();
+        preRange.setStart(block, 0);
+        preRange.setEnd(range.startContainer, range.startOffset);
+        contextBefore = preRange.toString().slice(-40);
+
+        const postRange = range.cloneRange();
+        postRange.setStart(range.endContainer, range.endOffset);
+        postRange.setEnd(block, block.childNodes.length);
+        contextAfter = postRange.toString().slice(0, 40);
+      }
+    } catch {
+      // fallback
+    }
+
+    dispatch("previewSelect", {
+      text,
+      contextBefore,
+      contextAfter,
+      approxRatio,
+    });
+  }
+
   onDestroy(() => {
     if (debounceTimeout) clearTimeout(debounceTimeout);
     if (queueRaf !== null) cancelAnimationFrame(queueRaf);
@@ -206,7 +264,14 @@
   });
 </script>
 
-<div bind:this={scrollContainer} on:scroll={onScroll} class="preview-container" class:centered>
+<div
+  bind:this={scrollContainer}
+  on:scroll={onScroll}
+  on:mouseup={handleSelection}
+  on:keyup={handleSelection}
+  class="preview-container"
+  class:centered
+>
   <article bind:this={container} class="markdown-body">
     {@html renderedHtml}
   </article>
