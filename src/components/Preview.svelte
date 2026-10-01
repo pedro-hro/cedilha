@@ -3,6 +3,7 @@
   import katex from "katex";
 
   export let content = "";
+  export let centered = false;
 
   function renderMarkdown(md: string): string {
     if (!md.trim()) return '<div class="preview-empty">No content to preview</div>';
@@ -60,7 +61,7 @@
   $: renderedHtml = renderMarkdown(content);
 </script>
 
-<div class="preview-container">
+<div class="preview-container" class:centered>
   <article class="markdown-body">
     {@html renderedHtml}
   </article>
@@ -85,6 +86,10 @@
     font-family: var(--font-mono);
     line-height: 1.7;
     font-size: var(--editor-font-size, 15px);
+  }
+
+  .preview-container.centered .markdown-body {
+    margin: 0 auto;
   }
 
   .preview-empty {

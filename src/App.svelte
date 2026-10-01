@@ -85,6 +85,16 @@
     };
     window.addEventListener("focus", onFocus);
 
+    let unlistenConfig: UnlistenFn | undefined;
+
+    listen<Prefs>("config-changed", (event) => {
+      if (event.payload) {
+        applyPrefs(event.payload);
+      }
+    }).then((fn) => {
+      unlistenConfig = fn;
+    }).catch(() => {});
+
     // Compute initial stats
     computeStats(content);
 
@@ -98,6 +108,7 @@
     return () => {
       window.removeEventListener("focus", onFocus);
       if (unlisten) unlisten();
+      if (unlistenConfig) unlistenConfig();
     };
   });
 
@@ -106,6 +117,15 @@
     document.documentElement.setAttribute("data-theme", p.theme);
     document.documentElement.style.setProperty("--editor-font-size", `${p.font_size}px`);
     document.documentElement.style.setProperty("--editor-tab-size", `${p.tab_size}`);
+    if (p.font_family) {
+      document.documentElement.style.setProperty(
+        "--font-mono",
+        `"${p.font_family}", "JetBrains Mono", monospace`,
+      );
+    }
+    if (p.editor_max_width) {
+      document.documentElement.style.setProperty("--editor-max-width", `${p.editor_max_width}px`);
+    }
   }
 
   function loadInto(doc: string, p: string | null) {
@@ -320,7 +340,7 @@
 
     {#if viewMode === "preview" || viewMode === "split"}
       <div class="pane preview-pane" class:half={viewMode === "split"}>
-        <Preview {content} />
+        <Preview {content} centered={viewMode === "preview"} />
       </div>
     {/if}
   </main>
@@ -530,10 +550,11 @@
     width: 50%;
   }
 
+  .pane.editor-pane.half {
+    border-right: 1px solid var(--border);
+  }
+
   .split-divider {
-    width: 1px;
-    background: var(--border);
-    flex: 0 0 1px;
-    height: 100%;
+    display: none;
   }
 </style>

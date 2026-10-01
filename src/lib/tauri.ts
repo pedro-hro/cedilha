@@ -10,6 +10,8 @@ export interface Prefs {
   tab_size: number;
   typewriter: boolean;
   line_numbers?: boolean;
+  font_family?: string;
+  editor_max_width?: number;
 }
 
 export interface LoadResult {

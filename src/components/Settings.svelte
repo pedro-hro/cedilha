@@ -139,6 +139,11 @@
           <span class="math-badge">LaTeX</span>
           <span><code>$E=mc^2$</code> inline · <code>$$\int...$$</code> block rendered in Split and Preview</span>
         </div>
+
+        <div class="config-hint">
+          <span class="config-label">Config</span>
+          <span><code>~/.config/cedilha/config.toml</code> (auto-reloads on save)</span>
+        </div>
       </div>
     </div>
   </div>
@@ -325,6 +330,40 @@
   }
 
   .math-hint code {
+    font-family: var(--font-mono);
+    color: var(--fg);
+    background: var(--bg-elev);
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+
+  .config-hint {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    padding: 6px 10px;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 11px;
+    color: var(--fg-dim);
+    line-height: 1.4;
+  }
+
+  .config-label {
+    background: var(--bg-elev);
+    color: var(--accent);
+    border: 1px solid var(--border);
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 3px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .config-hint code {
     font-family: var(--font-mono);
     color: var(--fg);
     background: var(--bg-elev);

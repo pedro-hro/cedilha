@@ -12,6 +12,7 @@ fn main() {
     tauri::Builder::default()
         .setup(|app| {
             crate::omarchy::start_theme_watcher(app.handle().clone());
+            crate::config::start_config_watcher(app.handle().clone());
             Ok(())
         })
         .manage(crate::commands::AppState {
