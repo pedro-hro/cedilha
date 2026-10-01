@@ -33,9 +33,18 @@ const baseTheme = EditorView.theme({
     backgroundColor: "transparent",
     color: "var(--fg)",
   },
+  ".cm-scroller": {
+    fontFamily: "var(--font-mono)",
+    lineHeight: "1.65",
+  },
   ".cm-content": {
     caretColor: "var(--accent)",
     fontFamily: "var(--font-mono)",
+    lineHeight: "1.65",
+  },
+  ".cm-line": {
+    lineHeight: "1.65",
+    padding: "0 4px",
   },
   "&.cm-focused .cm-cursor": {
     borderLeftColor: "var(--accent)",
@@ -48,6 +57,17 @@ const baseTheme = EditorView.theme({
     backgroundColor: "transparent",
     color: "var(--fg-dim)",
     borderRight: "1px solid var(--border)",
+    marginRight: "16px",
+    paddingRight: "8px",
+    userSelect: "none",
+  },
+  ".cm-lineNumbers .cm-gutterElement": {
+    fontFamily: "var(--font-mono)",
+    lineHeight: "1.65",
+    padding: "0 4px",
+    minWidth: "28px",
+    textAlign: "right",
+    color: "var(--fg-dim)",
   },
   ".cm-activeLine": {
     backgroundColor: "var(--bg-elev)",
@@ -56,6 +76,7 @@ const baseTheme = EditorView.theme({
   ".cm-activeLineGutter": {
     backgroundColor: "transparent",
     color: "var(--accent)",
+    fontWeight: "bold",
   },
 });
 

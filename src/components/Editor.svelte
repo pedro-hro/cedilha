@@ -117,46 +117,37 @@
     overflow: hidden;
     position: relative;
     display: flex;
-    flex-direction: column;
+    justify-content: center;
   }
 
   .editor-host :global(.cm-editor) {
     height: 100%;
     width: 100%;
+    max-width: var(--editor-max-width, 780px);
     display: flex;
     flex-direction: column;
   }
 
   .editor-host :global(.cm-scroller) {
+    flex: 1 1 auto;
     height: 100%;
     overflow-y: auto;
     font-family: var(--font-mono);
     font-size: var(--editor-font-size, 15px);
-    line-height: 1.7;
+    line-height: 1.65;
+    padding: 36px 16px 240px 16px;
     display: flex;
-  }
-
-  .editor-host :global(.cm-gutters) {
-    background: transparent;
-    color: var(--fg-dim);
-    border-right: 1px solid var(--border);
-    padding: 36px 8px 36px 16px;
-    user-select: none;
-    flex-shrink: 0;
+    align-items: flex-start;
   }
 
   .editor-host :global(.cm-content) {
     flex: 1 1 auto;
-    max-width: var(--editor-max-width, 780px);
-    margin: 0 auto;
-    padding: 36px 32px 240px 32px;
+    width: 100%;
+    padding: 0;
+    margin: 0;
     box-sizing: border-box;
     outline: none;
     caret-color: var(--accent);
-  }
-
-  .editor-host :global(.cm-line) {
-    padding: 0 4px;
   }
 
   /* Inline math preview styling */
