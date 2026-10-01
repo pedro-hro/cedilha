@@ -44,10 +44,6 @@ export function saveDocument(path: string, content: string, force = false): Prom
 
 export type UnsavedChoice = "save" | "discard" | "cancel";
 
-export function askUnsaved(name: string): Promise<UnsavedChoice> {
-  return invoke("ask_unsaved", { name });
-}
-
 export function exitApp(): Promise<void> {
   return invoke("exit_app");
 }

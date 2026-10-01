@@ -230,28 +230,6 @@ pub async fn save_as_file(content: String, state: tauri::State<'_, AppState>) ->
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
-/// Ask what to do with unsaved changes. Returns "save", "discard" or "cancel".
-#[tauri::command]
-pub async fn ask_unsaved(name: String) -> String {
-    use rfd::{AsyncMessageDialog, MessageButtons, MessageDialogResult, MessageLevel};
-    let result = AsyncMessageDialog::new()
-        .set_level(MessageLevel::Warning)
-        .set_title("Unsaved changes")
-        .set_description(format!("\"{name}\" has unsaved changes."))
-        .set_buttons(MessageButtons::YesNoCancelCustom(
-            "Save".into(),
-            "Discard".into(),
-            "Cancel".into(),
-        ))
-        .show()
-        .await;
-    match result {
-        MessageDialogResult::Custom(s) if s == "Save" => "save".into(),
-        MessageDialogResult::Custom(s) if s == "Discard" => "discard".into(),
-        _ => "cancel".into(),
-    }
-}
-
 /// Quit after the frontend confirmed there is nothing left to save.
 #[tauri::command]
 pub fn exit_app(app: tauri::AppHandle) {

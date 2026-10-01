@@ -13,7 +13,9 @@ export type ActionId =
   | "settings"
   | "find"
   | "find_next"
-  | "find_prev";
+  | "find_prev"
+  | "minimize"
+  | "close";
 
 export interface ActionDef {
   id: ActionId;
@@ -31,6 +33,8 @@ export const ACTIONS: ActionDef[] = [
   { id: "find", label: "Find", defaults: ["Ctrl+F"] },
   { id: "find_next", label: "Find next", defaults: ["F3", "Ctrl+G"] },
   { id: "find_prev", label: "Find previous", defaults: ["Shift+F3", "Ctrl+Shift+G"] },
+  { id: "minimize", label: "Minimize window", defaults: ["Ctrl+M"] },
+  { id: "close", label: "Close window", defaults: ["Ctrl+Q", "Ctrl+W"] },
 ];
 
 export type Bindings = Record<ActionId, string[]>;

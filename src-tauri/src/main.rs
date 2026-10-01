@@ -52,7 +52,6 @@ fn main() {
             crate::commands::save_prefs,
             crate::commands::get_omarchy_theme,
             crate::commands::render_markdown,
-            crate::commands::ask_unsaved,
             crate::commands::exit_app,
             crate::commands::cancel_close
         ))

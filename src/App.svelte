@@ -4,6 +4,7 @@
   import Editor from "./components/Editor.svelte";
   import Preview from "./components/Preview.svelte";
   import StatusBar from "./components/StatusBar.svelte";
+  import UnsavedDialog from "./components/UnsavedDialog.svelte";
   import { resolveBindings, parseCombo, matches, type ActionId } from "./lib/keybindings";
   import Settings from "./components/Settings.svelte";
   import * as api from "./lib/tauri";
@@ -123,17 +124,7 @@
     let unlistenConfig: UnlistenFn | undefined;
     let unlistenClose: UnlistenFn | undefined;
 
-    listen("close-requested", async () => {
-      try {
-        if (await confirmDiscard()) {
-          await api.exitApp();
-        } else {
-          await api.cancelClose();
-        }
-      } catch {
-        api.cancelClose().catch(() => {});
-      }
-    }).then((fn) => {
+    listen("close-requested", () => void requestQuit()).then((fn) => {
       unlistenClose = fn;
     }).catch(() => {});
 
@@ -215,11 +206,41 @@
     return typeof e === "string" ? e : e instanceof Error ? e.message : String(e);
   }
 
+  // Quit, asking about unsaved changes first. Used by the window's close button / the
+  // window manager and by the Close keybinding alike.
+  async function requestQuit() {
+    try {
+      if (await confirmDiscard()) {
+        await api.exitApp();
+      } else {
+        await api.cancelClose();
+      }
+    } catch {
+      api.cancelClose().catch(() => {});
+    }
+  }
+
+  // In-app unsaved-changes prompt (see UnsavedDialog.svelte).
+  let unsavedPrompt: { name: string; resolve: (c: api.UnsavedChoice) => void } | null = null;
+
+  function askUnsaved(name: string): Promise<api.UnsavedChoice> {
+    return new Promise((resolve) => {
+      unsavedPrompt = {
+        name,
+        resolve: (c) => {
+          unsavedPrompt = null;
+          resolve(c);
+        },
+      };
+    });
+  }
+
   // Resolves true when it is fine to replace the current document.
   async function confirmDiscard(): Promise<boolean> {
     if (!dirty) return true;
-    const name = path ? path.split(/[/\\]/).pop() || path : "Untitled";
-    const choice = await api.askUnsaved(name);
+    if (unsavedPrompt) return false; // already asking
+    const name = path ? path.split(/[/\\]/).pop() || path : "untitled";
+    const choice = await askUnsaved(name);
     if (choice === "save") {
       await save();
       return !dirty;
@@ -368,6 +389,8 @@
     settings: () => {
       settingsOpen = !settingsOpen;
     },
+    minimize: () => void api.toggleMinimize(),
+    close: () => void requestQuit(),
   };
 
   function onKeydown(e: KeyboardEvent) {
@@ -514,6 +537,10 @@
     col={cursor.col}
     {notice}
   />
+
+  {#if unsavedPrompt}
+    <UnsavedDialog name={unsavedPrompt.name} onChoice={unsavedPrompt.resolve} />
+  {/if}
 
   <Settings bind:open={settingsOpen} bind:prefs={prefs} {omarchyTheme} />
 </div>

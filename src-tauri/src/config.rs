@@ -123,7 +123,8 @@ pub fn generate_toml(prefs: &Prefs) -> String {
         keybindings.push_str(
             "\n# Keybinding overrides. Only actions you change are listed; remove a line to\n\
              # restore its default. Format: Ctrl+Shift+S, Alt+Enter, F3, ...\n\
-             # Actions: cycle_view, new, open, save, save_as, settings, find, find_next, find_prev\n\
+             # Actions: cycle_view, new, open, save, save_as, settings, find, find_next, find_prev,\n\
+             # minimize, close\n\
              [keybindings]\n",
         );
         for (action, combos) in &prefs.keybindings {
