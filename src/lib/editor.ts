@@ -47,7 +47,7 @@ const baseTheme = EditorView.theme({
     borderLeftColor: "var(--accent)",
     borderLeftWidth: "2px",
   },
-  "&.cm-focused .cm-selectionBackground, ::selection": {
+  ".cm-selectionBackground, ::selection": {
     backgroundColor: "var(--selection) !important",
   },
   ".cm-gutters": {

@@ -187,7 +187,6 @@
         selection: { anchor: match.from, head: match.to },
         effects: [EditorView.scrollIntoView(match.from, { y: "center" })],
       });
-      view.focus();
     }
   }
 </script>
