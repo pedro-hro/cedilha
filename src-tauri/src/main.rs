@@ -49,6 +49,7 @@ fn main() {
             crate::commands::new_document,
             crate::commands::minimize_window,
             crate::commands::toggle_maximize,
+            crate::commands::open_url,
             crate::commands::is_tiling_wm,
             crate::commands::get_prefs,
             crate::commands::save_prefs,

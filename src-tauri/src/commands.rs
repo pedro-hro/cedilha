@@ -282,6 +282,33 @@ pub fn minimize_window(window: Window) {
     window.minimize().ok();
 }
 
+/// Only web and mail links may be handed to the system opener.
+fn is_openable_url(url: &str) -> bool {
+    let lower = url.to_ascii_lowercase();
+    let scheme_ok = lower.starts_with("https://") || lower.starts_with("http://") || lower.starts_with("mailto:");
+    scheme_ok && !url.chars().any(|c| c.is_control() || c.is_whitespace())
+}
+
+/// Open a link from the preview in the user's browser / mail client.
+#[tauri::command]
+pub fn open_url(url: String) -> Result<(), String> {
+    if !is_openable_url(&url) {
+        return Err(format!("refusing to open {url}"));
+    }
+    // The URL starts with a scheme, so it can never be mistaken for an option.
+    let mut child = std::process::Command::new("xdg-open")
+        .arg(&url)
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| format!("could not run xdg-open: {e}"))?;
+    std::thread::spawn(move || {
+        let _ = child.wait();
+    });
+    Ok(())
+}
+
 /// Maximize the window, or restore it if it already is maximized.
 #[tauri::command]
 pub fn toggle_maximize(window: Window) {
@@ -553,6 +580,21 @@ mod tests {
         assert_eq!(path_from_arg("file:///tmp/100%.md"), PathBuf::from("/tmp/100%.md"));
         // a stray '%' before a multi-byte character must not panic
         assert_eq!(path_from_arg("file:///tmp/%aç.md"), PathBuf::from("/tmp/%aç.md"));
+    }
+
+    #[test]
+    fn only_web_and_mail_links_can_be_opened() {
+        assert!(is_openable_url("https://ui.adsabs.harvard.edu/abs/2003MNRAS.344.1000B"));
+        assert!(is_openable_url("http://example.org"));
+        assert!(is_openable_url("mailto:someone@example.org"));
+        assert!(is_openable_url("HTTPS://EXAMPLE.ORG"));
+        assert!(!is_openable_url("javascript:alert(1)"));
+        assert!(!is_openable_url("file:///etc/passwd"));
+        assert!(!is_openable_url("ftp://example.org"));
+        assert!(!is_openable_url("--help"));
+        assert!(!is_openable_url("https://exa mple.org"));
+        assert!(!is_openable_url("https://example.org\n--evil"));
+        assert!(!is_openable_url(""));
     }
 
     #[test]

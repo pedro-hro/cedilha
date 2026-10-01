@@ -18,6 +18,8 @@ export interface Prefs {
   window_controls?: string;
   /** App-drawn rounded corners: "auto" | "always" | "never". */
   rounded_corners?: string;
+  /** The welcome page opens once, on first launch. */
+  welcome_seen?: boolean;
   /** Keybinding overrides: action id -> key combos. See lib/keybindings.ts. */
   keybindings?: Record<string, string[]>;
 }
@@ -66,6 +68,11 @@ export function newDocument(): Promise<string> {
 
 export function minimizeWindow(): Promise<void> {
   return invoke("minimize_window");
+}
+
+/** Open an http(s)/mailto link in the system browser or mail client. */
+export function openUrl(url: string): Promise<void> {
+  return invoke("open_url", { url });
 }
 
 export function toggleMaximize(): Promise<void> {

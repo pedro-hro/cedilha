@@ -16,7 +16,8 @@ export type ActionId =
   | "find_prev"
   | "minimize"
   | "maximize"
-  | "close";
+  | "close"
+  | "welcome";
 
 export interface ActionDef {
   id: ActionId;
@@ -37,6 +38,7 @@ export const ACTIONS: ActionDef[] = [
   { id: "minimize", label: "Minimize window", defaults: ["Ctrl+M"] },
   { id: "maximize", label: "Maximize / restore window", defaults: ["Ctrl+Shift+M"] },
   { id: "close", label: "Close window", defaults: ["Ctrl+Q", "Ctrl+W"] },
+  { id: "welcome", label: "Open the welcome page", defaults: ["F1"] },
 ];
 
 export type Bindings = Record<ActionId, string[]>;

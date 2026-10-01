@@ -38,6 +38,9 @@ pub struct Prefs {
     /// managers), "always" or "never".
     #[serde(default = "default_window_controls")]
     pub window_controls: String,
+    /// Whether the welcome page has been shown already (it opens once, on first launch).
+    #[serde(default)]
+    pub welcome_seen: bool,
     /// Rounded window corners drawn by the app: "auto" (everywhere except tiling window
     /// managers, which round windows themselves), "always" or "never".
     #[serde(default = "default_rounded_corners")]
@@ -99,6 +102,7 @@ impl Default for Prefs {
             editor_max_width: default_editor_max_width(),
             window_controls: default_window_controls(),
             rounded_corners: default_rounded_corners(),
+            welcome_seen: false,
             default_view: default_view(),
             keybindings: BTreeMap::new(),
         }
@@ -138,7 +142,7 @@ pub fn generate_toml(prefs: &Prefs) -> String {
             "\n# Keybinding overrides. Only actions you change are listed; remove a line to\n\
              # restore its default. Format: Ctrl+Shift+S, Alt+Enter, F3, ...\n\
              # Actions: cycle_view, new, open, save, save_as, settings, find, find_next, find_prev,\n\
-             # minimize, maximize, close\n\
+             # minimize, maximize, close, welcome\n\
              [keybindings]\n",
         );
         for (action, combos) in &prefs.keybindings {
@@ -183,6 +187,10 @@ rounded_corners = {}
 # View shown on launch: "edit", "split" or "preview"
 default_view = {}
 
+# The welcome page opens once, on first launch. Set to false to see it again next time
+# (or press F1 inside the app at any moment).
+welcome_seen = {}
+
 # Keep the active line vertically centered (typewriter scrolling)
 typewriter = {}
 
@@ -197,6 +205,7 @@ line_numbers = {}
         quote(&prefs.window_controls),
         quote(&prefs.rounded_corners),
         quote(&prefs.default_view),
+        prefs.welcome_seen,
         prefs.typewriter,
         prefs.line_numbers,
         keybindings
@@ -304,6 +313,15 @@ mod tests {
         assert_eq!(parsed, prefs);
         // no overrides -> no table at all
         assert!(!generate_toml(&Prefs::default()).contains("[keybindings]"));
+    }
+
+    #[test]
+    fn welcome_flag_defaults_to_unseen_and_round_trips() {
+        let parsed: Prefs = toml::from_str("font_size = 20\n").unwrap();
+        assert!(!parsed.welcome_seen);
+        let prefs = Prefs { welcome_seen: true, ..Prefs::default() };
+        let back: Prefs = toml::from_str(&generate_toml(&prefs)).unwrap();
+        assert!(back.welcome_seen);
     }
 
     #[test]

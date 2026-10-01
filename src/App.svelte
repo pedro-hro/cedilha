@@ -6,6 +6,7 @@
   import Preview from "./components/Preview.svelte";
   import StatusBar from "./components/StatusBar.svelte";
   import UnsavedDialog from "./components/UnsavedDialog.svelte";
+  import welcome from "./lib/welcome.md?raw";
   import { resolveBindings, parseCombo, matches, type ActionId } from "./lib/keybindings";
   import Settings from "./components/Settings.svelte";
   import * as api from "./lib/tauri";
@@ -14,7 +15,7 @@
   type ViewMode = "edit" | "split" | "preview";
 
   // ----- state -----
-  let content = "# Welcome to Cedilha\n\nCedilha is an opinionated, distraction-free **Markdown & LaTeX** editor built with Rust and Tauri for the Omarchy aesthetic.\n\n### Math Formulas\n\nInline math works directly: $E = mc^2$, or try the Pythagorean theorem: $a^2 + b^2 = c^2$.\n\nYou can also write centered block formulas:\n\n$$\nf(x) = \\int_{-\\infty}^{\\infty} \\hat{f}(\\xi)\\,e^{2 \\pi i \\xi x}\\,d\\xi\n$$\n\nToggle **Split view** in the top bar (or press `Ctrl+P`) to see live rendered HTML and KaTeX side-by-side!\n";
+  let content = "";
   let path: string | null = null;
   let dirty = false;
   let viewMode: ViewMode = "edit";
@@ -123,11 +124,18 @@
     let unlistenResize: UnlistenFn | undefined;
     win.onResized(syncWindowState).then((fn) => (unlistenResize = fn)).catch(() => {});
 
-    api.getPrefs().then((p) => {
+    Promise.all([api.getPrefs(), api.initialFile().catch(() => null)]).then(([p, file]) => {
       applyPrefs(p);
       // Launch view comes from settings; later config reloads must not switch views.
       if (p.default_view === "edit" || p.default_view === "split" || p.default_view === "preview") {
         viewMode = p.default_view;
+      }
+      if (file?.path) {
+        loadInto(file.content, file.path);
+      } else if (!p.welcome_seen) {
+        // First launch: show the welcome page once. Saved right away through the prefs watcher.
+        openWelcome();
+        prefs.welcome_seen = true;
       }
     }).catch(() => {});
 
@@ -153,6 +161,8 @@
       }).catch(() => {});
     };
     window.addEventListener("focus", onFocus);
+    document.addEventListener("click", onLinkClick, true);
+    document.addEventListener("auxclick", onLinkClick, true);
 
     let unlistenConfig: UnlistenFn | undefined;
     let unlistenClose: UnlistenFn | undefined;
@@ -172,13 +182,10 @@
     // Compute initial stats
     scheduleComputeStats(content, true);
 
-    // `cedilha notes.md` opens that file.
-    api.initialFile().then((res) => {
-      if (res?.path) loadInto(res.content, res.path);
-    }).catch(() => {});
-
     return () => {
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("click", onLinkClick, true);
+      document.removeEventListener("auxclick", onLinkClick, true);
       if (unlisten) unlisten();
       if (unlistenConfig) unlistenConfig();
       if (unlistenClose) unlistenClose();
@@ -408,6 +415,38 @@
   // ----- keyboard shortcuts -----
   $: bindings = resolveBindings(prefs.keybindings);
 
+  // The welcome page always opens as a fresh untitled copy, so edits never touch the original.
+  function openWelcome() {
+    loadInto(welcome, null);
+    if (viewMode === "edit") viewMode = "split";
+  }
+
+  async function showWelcome() {
+    if (!(await confirmDiscard())) return;
+    openWelcome();
+  }
+
+  // Links in the preview must never navigate the app window away: in-page anchors scroll the
+  // preview, web and mail links open in the system browser, anything else is ignored.
+  function onLinkClick(e: MouseEvent) {
+    if (e.defaultPrevented || e.button > 1) return;
+    const a = (e.target as Element | null)?.closest?.("a[href]");
+    if (!a) return;
+    const href = a.getAttribute("href") ?? "";
+    e.preventDefault();
+    if (href.startsWith("#")) {
+      let id = href.slice(1);
+      try {
+        id = decodeURIComponent(id);
+      } catch {
+        /* keep the raw id */
+      }
+      document.getElementById(id)?.scrollIntoView({ block: "start" });
+    } else if (/^(https?:|mailto:)/i.test(href)) {
+      api.openUrl(href).catch((err) => showNotice(`Could not open link: ${errorText(err)}`));
+    }
+  }
+
   const keyActions: Partial<Record<ActionId, () => void>> = {
     save: () => void save(),
     save_as: () => void saveAs(),
@@ -426,6 +465,7 @@
     minimize: () => void api.minimizeWindow(),
     maximize: () => void api.toggleMaximize(),
     close: () => void requestQuit(),
+    welcome: () => void showWelcome(),
   };
 
   function onKeydown(e: KeyboardEvent) {
