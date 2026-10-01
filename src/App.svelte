@@ -204,54 +204,64 @@
 
 <div class="app" data-theme={prefs.theme}>
   <header class="toolbar" data-tauri-drag-region>
-    <div class="brand" data-tauri-drag-region>
-      <span class="logo">ç</span>
-      <span class="name">cedilha</span>
-    </div>
-
-    <!-- Apostrophe-style View Mode Switcher -->
-    <div class="view-switcher" role="radiogroup" aria-label="View mode">
-      <button
-        class:active={viewMode === "edit"}
-        onclick={() => (viewMode = "edit")}
-        title="Code only (Ctrl+1)"
-      >
-        Edit
-      </button>
-      <button
-        class:active={viewMode === "split"}
-        onclick={() => (viewMode = "split")}
-        title="Side-by-side split (Ctrl+2)"
-      >
-        Split
-      </button>
-      <button
-        class:active={viewMode === "preview"}
-        onclick={() => (viewMode = "preview")}
-        title="Rendered preview only (Ctrl+3)"
-      >
-        Preview
-      </button>
-    </div>
-
-    <nav class="actions">
-      <button onclick={newDoc} title="New Document (Ctrl+N)">New <kbd>Ctrl+N</kbd></button>
-      <button onclick={openFile} title="Open Document (Ctrl+O)">Open <kbd>Ctrl+O</kbd></button>
-      <button class="primary" onclick={save} title="Save (Ctrl+S)">
-        Save {#if dirty}* {/if}<kbd>Ctrl+S</kbd>
-      </button>
-      <button onclick={() => (settingsOpen = !settingsOpen)} title="Settings (Ctrl+,)">
-        ⚙ Settings
-      </button>
-    </nav>
-
-    {#if appWindow}
-      <div class="window-controls">
-        <button class="win-btn" onclick={minimizeWindow} aria-label="Minimize">─</button>
-        <button class="win-btn" onclick={toggleMaximize} aria-label="Maximize">□</button>
-        <button class="win-btn close" onclick={closeWindow} aria-label="Close">✕</button>
+    <!-- Left: Logo & Document Operations -->
+    <div class="toolbar-left" data-tauri-drag-region>
+      <div class="brand" data-tauri-drag-region title="Cedilha">
+        <span class="logo">ç</span>
       </div>
-    {/if}
+
+      <nav class="doc-actions">
+        <button onclick={newDoc} title="New Document (Ctrl+N)">New</button>
+        <button onclick={openFile} title="Open Document (Ctrl+O)">Open</button>
+        <button class="save-btn" class:dirty onclick={save} title="Save (Ctrl+S)">
+          Save{#if dirty}<span class="dirty-dot">●</span>{/if}
+        </button>
+      </nav>
+    </div>
+
+    <!-- Center: Segmented View Switcher (Apostrophe style) -->
+    <div class="toolbar-center" data-tauri-drag-region>
+      <div class="view-switcher" role="radiogroup" aria-label="View mode">
+        <button
+          class:active={viewMode === "edit"}
+          onclick={() => (viewMode = "edit")}
+          title="Code only (Ctrl+1)"
+        >
+          Edit
+        </button>
+        <button
+          class:active={viewMode === "split"}
+          onclick={() => (viewMode = "split")}
+          title="Side-by-side split (Ctrl+2)"
+        >
+          Split
+        </button>
+        <button
+          class:active={viewMode === "preview"}
+          onclick={() => (viewMode = "preview")}
+          title="Rendered preview only (Ctrl+3)"
+        >
+          Preview
+        </button>
+      </div>
+    </div>
+
+    <!-- Right: Preferences & Window Controls -->
+    <div class="toolbar-right" data-tauri-drag-region>
+      <div class="util-actions">
+        <button onclick={() => (settingsOpen = !settingsOpen)} title="Settings (Ctrl+,)">
+          Settings
+        </button>
+      </div>
+
+      {#if appWindow}
+        <div class="window-controls">
+          <button class="win-btn" onclick={minimizeWindow} aria-label="Minimize">─</button>
+          <button class="win-btn" onclick={toggleMaximize} aria-label="Maximize">□</button>
+          <button class="win-btn close" onclick={closeWindow} aria-label="Close">✕</button>
+        </div>
+      {/if}
+    </div>
   </header>
 
   <main class="workspace" class:split={viewMode === "split"}>
@@ -307,32 +317,90 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 42px;
+    height: 40px;
     padding: 0 12px;
     background: var(--bg-elev);
     border-bottom: 1px solid var(--border);
     flex: 0 0 auto;
     cursor: default;
+    user-select: none;
+  }
+
+  .toolbar-left {
+    display: flex;
+    align-items: center;
     gap: 12px;
+    flex: 1 1 0;
+  }
+
+  .toolbar-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+  }
+
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    flex: 1 1 0;
   }
 
   .brand {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-weight: 700;
-    color: var(--accent);
-    font-size: 15px;
-    letter-spacing: 0.5px;
-    flex: 0 0 auto;
+    justify-content: center;
   }
 
   .logo {
-    font-size: 20px;
+    font-size: 22px;
     line-height: 1;
     font-family: serif;
-    font-weight: bold;
+    font-weight: 700;
     color: var(--accent);
+    user-select: none;
+    padding: 0 4px;
+    cursor: default;
+  }
+
+  .doc-actions,
+  .util-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .toolbar button {
+    background: transparent;
+    border: 1px solid transparent;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 10px;
+    color: var(--fg);
+    border-radius: var(--radius);
+    transition: all 0.12s ease;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .toolbar button:hover {
+    background: var(--bg-surface);
+    border-color: var(--border);
+  }
+
+  .save-btn.dirty {
+    color: var(--warning);
+    font-weight: 600;
+  }
+
+  .dirty-dot {
+    font-size: 8px;
+    color: var(--warning);
+    margin-left: 2px;
   }
 
   /* Segmented View Switcher (Apostrophe style) */
@@ -348,7 +416,7 @@
   .view-switcher button {
     background: transparent;
     border: none;
-    font-size: 12px;
+    font-size: 11px;
     font-weight: 500;
     padding: 3px 12px;
     color: var(--fg-dim);
@@ -367,34 +435,11 @@
     font-weight: 700;
   }
 
-  .actions {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .actions button {
-    font-size: 12px;
-    padding: 4px 10px;
-    display: inline-flex;
-    align-items: center;
-  }
-
-  kbd {
-    font-family: var(--font-mono);
-    font-size: 9px;
-    opacity: 0.7;
-    margin-left: 6px;
-    padding: 1px 4px;
-    background: var(--bg-surface);
-    border-radius: 3px;
-    border: 1px solid var(--border);
-  }
-
   .window-controls {
     display: flex;
     align-items: center;
     gap: 2px;
+    margin-left: 4px;
   }
 
   .win-btn {
