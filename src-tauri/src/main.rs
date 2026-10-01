@@ -20,7 +20,15 @@ fn main() {
             crate::config::start_config_watcher(app.handle().clone());
             Ok(())
         })
-        .manage(crate::commands::AppState::new(initial_prefs))
+        .manage({
+            let state = crate::commands::AppState::new(initial_prefs);
+            // `cedilha notes.md` opens that file (anything starting with '-' is a flag).
+            *state.initial_file.lock().unwrap() = std::env::args()
+                .nth(1)
+                .filter(|a| !a.starts_with('-'))
+                .map(std::path::PathBuf::from);
+            state
+        })
         .on_window_event(|window, event| {
             if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                 // Let the frontend check for unsaved changes first. If it never answers and
@@ -34,6 +42,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler!(
             crate::commands::open_file,
+            crate::commands::initial_file,
             crate::commands::read_document,
             crate::commands::save_document,
             crate::commands::save_as_file,

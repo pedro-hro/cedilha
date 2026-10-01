@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount } from "svelte";
+  import { onMount, tick } from "svelte";
   import { listen, type UnlistenFn } from "@tauri-apps/api/event";
   import Editor from "./components/Editor.svelte";
   import Preview from "./components/Preview.svelte";
@@ -28,6 +28,8 @@
   let editor: InstanceType<typeof Editor>;
   let preview: InstanceType<typeof Preview>;
   let stats = { words: 0, chars: 0, lines: 1 };
+  let cursor = { line: 1, col: 1 };
+  $: docName = path ? path.split(/[/\\]/).pop() || path : "untitled";
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
   // Two-way scroll sync. Whichever pane the user is scrolling owns the sync; scroll events
   // caused by the other pane being moved programmatically are ignored until things settle.
@@ -87,7 +89,13 @@
   onMount(() => {
     let unlisten: UnlistenFn | undefined;
 
-    api.getPrefs().then((p) => applyPrefs(p)).catch(() => {});
+    api.getPrefs().then((p) => {
+      applyPrefs(p);
+      // Launch view comes from settings; later config reloads must not switch views.
+      if (p.default_view === "edit" || p.default_view === "split" || p.default_view === "preview") {
+        viewMode = p.default_view;
+      }
+    }).catch(() => {});
 
     api.getOmarchyTheme().then((theme) => {
       if (theme) {
@@ -140,12 +148,10 @@
     // Compute initial stats
     scheduleComputeStats(content, true);
 
-    // Load initial file argument if passed via CLI: `cedilha document.md`
-    const params = new URLSearchParams(window.location.search);
-    const initial = params.get("file");
-    if (initial) {
-      api.readDocument(initial).then((doc) => loadInto(doc, initial)).catch(() => {});
-    }
+    // `cedilha notes.md` opens that file.
+    api.initialFile().then((res) => {
+      if (res?.path) loadInto(res.content, res.path);
+    }).catch(() => {});
 
     return () => {
       window.removeEventListener("focus", onFocus);
@@ -377,6 +383,32 @@
         return;
       }
     }
+
+    // Keyboard-first: if focus fell to <body> (clicking the preview, closing a dialog...),
+    // give the key to the editor instead of dropping it.
+    const bare = document.activeElement === document.body || document.activeElement === null;
+    const copying = (e.ctrlKey || e.metaKey) && ["c", "Insert"].includes(e.key.length === 1 ? e.key.toLowerCase() : e.key);
+    const modifierOnly = ["Control", "Shift", "Alt", "Meta", "AltGraph", "CapsLock", "Dead"].includes(e.key);
+    if (bare && !settingsOpen && viewMode !== "preview" && !copying && !modifierOnly) {
+      if (editor?.forwardKey(e)) e.preventDefault();
+    }
+  }
+
+  // A plain click in the preview shouldn't strand the keyboard: return focus to the editor.
+  // (Dragging a selection keeps focus where it is so the text can still be copied.)
+  function onPreviewMouseUp() {
+    if (viewMode === "split" && window.getSelection()?.isCollapsed) {
+      editor?.focusEditor();
+    }
+  }
+
+  // Closing Settings hands the keyboard back to the editor.
+  let settingsWasOpen = false;
+  $: {
+    if (settingsWasOpen && !settingsOpen) {
+      tick().then(() => editor?.focusEditor());
+    }
+    settingsWasOpen = settingsOpen;
   }
 
   // Short label for tooltips, e.g. "Ctrl+Shift+S" (first binding of an action).
@@ -399,60 +431,36 @@
 
 <div class="app" data-theme={prefs.theme}>
   <header class="toolbar" data-tauri-drag-region>
-    <!-- Left: Logo & Document Operations -->
     <div class="toolbar-left" data-tauri-drag-region>
-      <div class="brand" data-tauri-drag-region title="Cedilha">
-        <span class="logo">ç</span>
-      </div>
-
-      <nav class="doc-actions">
-        <button onclick={newDoc} title="New Document ({hint('new')})">New</button>
-        <button onclick={openFile} title="Open Document ({hint('open')})">Open</button>
-        <button class="save-btn" class:dirty onclick={save} title="Save ({hint('save')})">
-          Save{#if dirty}<span class="dirty-dot">●</span>{/if}
-        </button>
-      </nav>
+      <span class="logo" title="Cedilha">ç</span>
+      <span class="doc-name" title={path ?? "unsaved document"} data-tauri-drag-region>
+        {docName}{#if dirty}<span class="dirty-dot" title="Unsaved changes">●</span>{/if}
+      </span>
     </div>
 
-    <!-- Center: Segmented View Switcher (Apostrophe style) -->
-    <div class="toolbar-center" data-tauri-drag-region>
-      <div class="view-switcher" role="radiogroup" aria-label="View mode">
+    <div class="tabs" role="tablist" aria-label="View mode">
+      {#each ["edit", "split", "preview"] as mode}
         <button
-          class:active={viewMode === "edit"}
-          onclick={() => (viewMode = "edit")}
-          title="Code only"
+          role="tab"
+          aria-selected={viewMode === mode}
+          class:active={viewMode === mode}
+          onclick={() => (viewMode = mode as ViewMode)}
+          title={mode === "edit" ? "Code only" : mode === "split" ? "Side-by-side" : "Rendered preview"}
         >
-          Edit
+          {mode}
         </button>
-        <button
-          class:active={viewMode === "split"}
-          onclick={() => (viewMode = "split")}
-          title="Side-by-side split"
-        >
-          Split
-        </button>
-        <button
-          class:active={viewMode === "preview"}
-          onclick={() => (viewMode = "preview")}
-          title="Rendered preview only ({hint('cycle_view')} cycles views)"
-        >
-          Preview
-        </button>
-      </div>
+      {/each}
+      <span class="tab-hint" title="Cycle views">{hint("cycle_view").replace(/\+/g, " ")}</span>
     </div>
 
-    <!-- Right: Settings -->
     <div class="toolbar-right" data-tauri-drag-region>
-      <div class="util-actions">
-        <button
-          class="settings-btn"
-          onclick={() => (settingsOpen = !settingsOpen)}
-          title="Settings ({hint('settings')})"
-        >
-          <span>Settings</span>
-          <kbd class="key-badge">{hint('settings').replace(/\+/g, " ")}</kbd>
-        </button>
-      </div>
+      <button
+        class="settings-btn"
+        onclick={() => (settingsOpen = !settingsOpen)}
+        title="Settings ({hint('settings')})"
+      >
+        settings <span class="key-badge">{hint("settings").replace(/\+/g, " ").toLowerCase()}</span>
+      </button>
     </div>
   </header>
 
@@ -473,6 +481,7 @@
         findPrevKeys={bindings.find_prev}
         on:change={handleEditorChange}
         on:scroll={() => syncFrom("editor")}
+        on:cursor={(e) => (cursor = e.detail)}
       />
     </div>
 
@@ -480,8 +489,10 @@
       <div class="split-divider"></div>
     {/if}
 
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="pane preview-pane"
+      onmouseup={onPreviewMouseUp}
       class:half={viewMode === "split"}
       class:hidden={viewMode === "edit"}
     >
@@ -496,11 +507,11 @@
   </main>
 
   <StatusBar
-    path={path}
-    dirty={dirty}
+    {dirty}
     wordCount={stats.words}
     charCount={stats.chars}
-    lineCount={stats.lines}
+    line={cursor.line}
+    col={cursor.col}
     {notice}
   />
 
@@ -520,154 +531,110 @@
 
   .toolbar {
     display: flex;
-    align-items: center;
+    align-items: stretch;
     justify-content: space-between;
-    height: 40px;
-    padding: 0 12px;
+    height: var(--toolbar-height);
+    padding: 0 4px 0 10px;
     background: var(--bg-elev);
     border-bottom: 1px solid var(--border);
     flex: 0 0 auto;
     cursor: default;
     user-select: none;
+    font-size: var(--text-min);
   }
 
-  .toolbar-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    flex: 1 1 0;
-  }
-
-  .toolbar-center {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 auto;
-  }
-
+  .toolbar-left,
   .toolbar-right {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
     flex: 1 1 0;
+    min-width: 0;
   }
 
-  .brand {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    height: 100%;
+  .toolbar-left {
+    gap: 10px;
+  }
+
+  .toolbar-right {
+    justify-content: flex-end;
   }
 
   .logo {
-    font-size: 22px;
+    font-size: 18px;
     line-height: 1;
     font-family: serif;
     font-weight: 700;
     color: var(--accent);
-    user-select: none;
-    padding: 0 4px;
-    cursor: default;
     /* Optical correction for the cedilla descender hook */
-    transform: translateY(-3px);
+    transform: translateY(-2px);
   }
 
-  .doc-actions,
-  .util-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .toolbar button {
-    background: transparent;
-    border: 1px solid transparent;
-    font-size: 12px;
-    font-weight: 500;
-    padding: 4px 10px;
+  .doc-name {
     color: var(--fg);
-    border-radius: var(--radius);
-    transition: all 0.12s ease;
-    cursor: pointer;
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-  }
-
-  .toolbar button:hover {
-    background: var(--bg-surface);
-    border-color: var(--border);
-  }
-
-  .settings-btn {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 3px 8px;
-  }
-
-  .key-badge {
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    line-height: 1;
-    padding: 2px 5px;
-    color: var(--fg-dim);
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    letter-spacing: -0.01em;
-    pointer-events: none;
-    transition: color 0.12s ease, border-color 0.12s ease;
-  }
-
-  .settings-btn:hover .key-badge {
-    color: var(--accent);
-    border-color: var(--accent);
-  }
-
-  .save-btn.dirty {
-    color: var(--warning);
-    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .dirty-dot {
-    font-size: 8px;
     color: var(--warning);
-    margin-left: 2px;
+    margin-left: 6px;
+    font-size: 9px;
   }
 
-  /* Segmented View Switcher (Apostrophe style) */
-  .view-switcher {
+  /* Text tabs; the active one is underlined in the accent color. */
+  .tabs {
     display: flex;
-    background: var(--bg-surface);
-    border-radius: var(--radius);
-    padding: 2px;
-    border: 1px solid var(--border);
+    align-items: stretch;
     gap: 2px;
   }
 
-  .view-switcher button {
+  .tabs button {
     background: transparent;
     border: none;
-    font-size: 11px;
-    font-weight: 500;
-    padding: 3px 12px;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    padding: 0 12px;
+    font-size: var(--text-min);
     color: var(--fg-dim);
-    border-radius: calc(var(--radius) - 2px);
-    transition: all 0.12s ease;
-    cursor: pointer;
   }
 
-  .view-switcher button:hover {
+  .tabs button:hover {
     color: var(--fg);
   }
 
-  .view-switcher button.active {
-    background: var(--accent);
-    color: var(--bg);
-    font-weight: 700;
+  .tabs button.active {
+    color: var(--accent);
+    border-bottom-color: var(--accent);
+  }
+
+  .tab-hint {
+    align-self: center;
+    margin-left: 8px;
+    color: var(--fg-dim);
+    opacity: 0.6;
+    font-size: var(--text-min);
+  }
+
+  .settings-btn {
+    background: transparent;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+    height: 100%;
+    font-size: var(--text-min);
+    color: var(--fg-dim);
+  }
+
+  .settings-btn:hover {
+    color: var(--fg);
+  }
+
+  .key-badge {
+    color: var(--fg-dim);
+    opacity: 0.7;
   }
 
   .workspace {

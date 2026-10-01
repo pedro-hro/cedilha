@@ -323,7 +323,7 @@
     color: var(--fg);
     user-select: text;
     box-sizing: border-box;
-    padding: 24px 32px 240px 32px;
+    padding: 12px 32px 240px 32px;
   }
 
   .markdown-body {
@@ -335,11 +335,16 @@
     font-size: var(--editor-font-size, 15px);
   }
 
+  /* Start flush with the top of the pane so it lines up with the editor in split view. */
+  .markdown-body > :global(:first-child) {
+    margin-top: 0;
+  }
+
   .preview-container.centered .markdown-body {
     margin: 0 auto;
   }
 
-  .preview-empty {
+  .markdown-body :global(.preview-empty) {
     color: var(--fg-dim);
     font-style: italic;
     padding: 40px 0;
@@ -358,7 +363,7 @@
   }
 
   .markdown-body :global(h1) {
-    font-size: 1.85em;
+    font-size: 1.6em;
     color: var(--accent);
     border-bottom: 1px solid var(--border);
     padding-bottom: 0.3em;
@@ -399,19 +404,18 @@
   .markdown-body :global(code) {
     font-family: var(--font-mono);
     font-size: 0.9em;
-    padding: 2px 6px;
+    padding: 1px 5px;
     background: var(--bg-elev);
     border-radius: var(--radius);
-    border: 1px solid var(--border);
   }
 
   .markdown-body :global(pre) {
     background: var(--bg-elev);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 16px 20px;
+    padding: 10px 14px;
     overflow-x: auto;
-    margin: 1.2em 0;
+    margin: 1em 0;
   }
 
   .markdown-body :global(pre code) {
@@ -422,11 +426,9 @@
   }
 
   .markdown-body :global(blockquote) {
-    margin: 1.2em 0;
-    padding: 10px 20px;
-    background: var(--bg-elev);
-    border-left: 4px solid var(--accent);
-    border-radius: 0 var(--radius) var(--radius) 0;
+    margin: 1em 0;
+    padding: 0 16px;
+    border-left: 2px solid var(--accent);
     color: var(--fg-dim);
   }
 
@@ -442,6 +444,18 @@
 
   .markdown-body :global(li) {
     margin: 0.35em 0;
+  }
+
+  /* Task-list items carry their own checkbox; drop the bullet next to it. */
+  .markdown-body :global(li:has(> input[type="checkbox"])) {
+    list-style: none;
+    margin-left: -1.4em;
+  }
+
+  /* ...but keep a nested list indented under its parent item. */
+  .markdown-body :global(li:has(> input[type="checkbox"]) > ul),
+  .markdown-body :global(li:has(> input[type="checkbox"]) > ol) {
+    margin-left: 1.4em;
   }
 
   .markdown-body :global(input[type="checkbox"]) {
@@ -463,7 +477,7 @@
 
   .markdown-body :global(th),
   .markdown-body :global(td) {
-    padding: 8px 14px;
+    padding: 6px 12px;
     border: 1px solid var(--border);
     text-align: left;
   }
@@ -506,11 +520,8 @@
   }
 
   .markdown-body :global(.katex-display) {
-    margin: 1.4em 0;
-    padding: 12px 16px;
-    background: var(--bg-elev);
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
+    margin: 1.2em 0;
     overflow-x: auto;
+    overflow-y: hidden;
   }
 </style>

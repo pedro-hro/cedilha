@@ -25,6 +25,8 @@ pub struct AppState {
     pub disk_mtime: Mutex<Option<SystemTime>>,
     /// A window close is waiting on the frontend's unsaved-changes check.
     pub close_requested: AtomicBool,
+    /// File named on the command line (`cedilha notes.md`), handed to the frontend once.
+    pub initial_file: Mutex<Option<PathBuf>>,
 }
 
 impl AppState {
@@ -35,6 +37,7 @@ impl AppState {
             allowed: Mutex::new(HashSet::new()),
             disk_mtime: Mutex::new(None),
             close_requested: AtomicBool::new(false),
+            initial_file: Mutex::new(None),
         }
     }
 
@@ -149,6 +152,24 @@ pub async fn open_file(state: tauri::State<'_, AppState>) -> Result<LoadResult, 
         content,
         prefs: state.prefs.lock().unwrap().clone(),
     })
+}
+
+/// The file given on the command line, if any. A path typed on the command line counts
+/// as chosen by the user, so it joins the allowed set. Returns it only once.
+#[tauri::command]
+pub async fn initial_file(state: tauri::State<'_, AppState>) -> Result<Option<LoadResult>, String> {
+    let Some(path) = state.initial_file.lock().unwrap().take() else {
+        return Ok(None);
+    };
+    let content = fs::read_to_string(&path).map_err(|e| format!("read failed for {}: {e}", path.display()))?;
+    state.allow(&path);
+    state.remember_mtime(&path);
+    *state.current_path.lock().unwrap() = Some(path.clone());
+    Ok(Some(LoadResult {
+        path: Some(path.to_string_lossy().into_owned()),
+        content,
+        prefs: state.prefs.lock().unwrap().clone(),
+    }))
 }
 
 /// Read a document the user already opened or saved (paths from the native dialogs only).

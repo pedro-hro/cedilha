@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import type { Prefs, OmarchyTheme } from "../lib/tauri";
   import {
     ACTIONS,
@@ -6,6 +7,7 @@
     comboFromEvent,
     comboId,
     comboParts,
+    type ActionDef,
     type ActionId,
   } from "../lib/keybindings";
 
@@ -19,23 +21,105 @@
   };
   export let omarchyTheme: OmarchyTheme | null = null;
 
+  type Choice = { value: string | number; label: string };
+  type PrefKey = "theme" | "font_size" | "tab_size" | "editor_max_width" | "default_view";
+  type BoolKey = "typewriter" | "line_numbers";
+  type Row =
+    | { kind: "choice"; section: string; label: string; key: PrefKey; options: Choice[] }
+    | { kind: "toggle"; section: string; label: string; hint: string; key: BoolKey }
+    | { kind: "text"; section: string; label: string }
+    | { kind: "key"; section: string; action: ActionDef };
+
   $: themes = [
     {
-      id: "omarchy",
-      label: omarchyTheme
-        ? `Omarchy (System: ${omarchyTheme.display_name})`
-        : "Omarchy (System)",
+      value: "omarchy",
+      label: omarchyTheme ? `omarchy (${omarchyTheme.display_name})` : "omarchy (system)",
     },
-    { id: "catppuccin-mocha", label: "Catppuccin Mocha" },
-    { id: "catppuccin-latte", label: "Catppuccin Latte" },
-    { id: "tokyo-night", label: "Tokyo Night" },
-    { id: "gruvbox-dark", label: "Gruvbox Dark" },
+    { value: "catppuccin-mocha", label: "catppuccin mocha" },
+    { value: "catppuccin-latte", label: "catppuccin latte" },
+    { value: "tokyo-night", label: "tokyo night" },
+    { value: "gruvbox-dark", label: "gruvbox dark" },
   ];
 
-  const fontSizes = [12, 13, 14, 15, 16, 17, 18, 20, 22, 24];
-  const tabSizes = [1, 2, 3, 4];
+  const sizeChoices = (xs: number[], unit = "px"): Choice[] =>
+    xs.map((v) => ({ value: v, label: `${v}${unit}` }));
 
-  const widths = [680, 800, 900, 1040, 1200, 1400];
+  $: rows = [
+    { kind: "choice", section: "appearance", label: "Theme", key: "theme", options: themes },
+    { kind: "text", section: "appearance", label: "Font family" },
+    {
+      kind: "choice",
+      section: "appearance",
+      label: "Font size",
+      key: "font_size",
+      options: sizeChoices([12, 13, 14, 15, 16, 17, 18, 20, 22, 24]),
+    },
+    {
+      kind: "choice",
+      section: "appearance",
+      label: "Text column width",
+      key: "editor_max_width",
+      options: sizeChoices([680, 800, 900, 1040, 1200, 1400]),
+    },
+    {
+      kind: "choice",
+      section: "editor",
+      label: "Tab width",
+      key: "tab_size",
+      options: sizeChoices([1, 2, 3, 4], ""),
+    },
+    {
+      kind: "toggle",
+      section: "editor",
+      label: "Typewriter scrolling",
+      hint: "keep the active line centered",
+      key: "typewriter",
+    },
+    {
+      kind: "toggle",
+      section: "editor",
+      label: "Line numbers",
+      hint: "show the gutter",
+      key: "line_numbers",
+    },
+    {
+      kind: "choice",
+      section: "startup",
+      label: "Open in view",
+      key: "default_view",
+      options: [
+        { value: "edit", label: "edit" },
+        { value: "split", label: "split" },
+        { value: "preview", label: "preview" },
+      ],
+    },
+    ...ACTIONS.map((action) => ({ kind: "key", section: "keybindings", action }) as Row),
+  ] as Row[];
+
+  let sel = 0;
+  let panel: HTMLDivElement;
+  let fontInput: HTMLInputElement;
+
+  function set<K extends keyof Prefs>(key: K, value: Prefs[K]) {
+    prefs[key] = value;
+  }
+
+  function currentIndex(row: Extract<Row, { kind: "choice" }>): number {
+    const i = row.options.findIndex((o) => o.value === prefs[row.key]);
+    return i === -1 ? 0 : i;
+  }
+
+  // `p` is only here so the template re-evaluates when prefs change.
+  function labelOf(row: Extract<Row, { kind: "choice" }>, p: Prefs): string {
+    const i = row.options.findIndex((o) => o.value === p[row.key]);
+    return row.options[i === -1 ? 0 : i].label;
+  }
+
+  function cycle(row: Extract<Row, { kind: "choice" }>, dir: number) {
+    const n = row.options.length;
+    const next = row.options[(currentIndex(row) + dir + n) % n];
+    set(row.key, next.value as never);
+  }
 
   // ----- keybindings -----
   $: bindings = resolveBindings(prefs.keybindings);
@@ -93,162 +177,206 @@
     recording = null;
   }
 
-  $: if (!open && recording) stopRecording();
+  // ----- keyboard navigation -----
+  function activate(row: Row) {
+    if (row.kind === "choice") cycle(row, 1);
+    else if (row.kind === "toggle") set(row.key, !prefs[row.key]);
+    else if (row.kind === "text") fontInput?.focus();
+    else startRecording(row.action.id);
+  }
+
+  function move(delta: number) {
+    sel = Math.min(rows.length - 1, Math.max(0, sel + delta));
+    tick().then(() =>
+      panel?.querySelector(".srow.sel")?.scrollIntoView({ block: "nearest" }),
+    );
+  }
+
+  function onKey(e: KeyboardEvent) {
+    if (!open || recording) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return; // app shortcuts keep working
+
+    const target = e.target as HTMLElement;
+    if (target instanceof HTMLInputElement) {
+      if (e.key === "Enter" || e.key === "Escape") {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        target.blur();
+      }
+      return;
+    }
+
+    const row = rows[sel];
+    let handled = true;
+    switch (e.key) {
+      case "ArrowDown":
+      case "j":
+        move(1);
+        break;
+      case "ArrowUp":
+      case "k":
+        move(-1);
+        break;
+      case "Home":
+        move(-rows.length);
+        break;
+      case "End":
+        move(rows.length);
+        break;
+      case "ArrowRight":
+      case "l":
+        if (row.kind === "choice") cycle(row, 1);
+        else if (row.kind === "toggle") set(row.key, !prefs[row.key]);
+        break;
+      case "ArrowLeft":
+      case "h":
+        if (row.kind === "choice") cycle(row, -1);
+        else if (row.kind === "toggle") set(row.key, !prefs[row.key]);
+        break;
+      case "Enter":
+      case " ":
+        activate(row);
+        break;
+      case "Backspace":
+      case "Delete":
+        if (row.kind === "key") setBinding(row.action.id, null);
+        break;
+      case "Escape":
+        open = false;
+        break;
+      default:
+        handled = false;
+    }
+    if (handled) {
+      e.preventDefault();
+      e.stopImmediatePropagation();
+    }
+  }
+
+  // Listen only while open, in the capture phase, so the editor underneath never sees
+  // the arrow keys. Focus leaves the editor so typing can't leak into the document.
+  let listening = false;
+  $: if (open && !listening) {
+    listening = true;
+    (document.activeElement as HTMLElement | null)?.blur();
+    window.addEventListener("keydown", onKey, true);
+  } else if (!open && listening) {
+    listening = false;
+    window.removeEventListener("keydown", onKey, true);
+    stopRecording();
+  }
 
   function handleScrimClick(e: MouseEvent) {
-    if (e.target === e.currentTarget) {
-      open = false;
-    }
-  }
-
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape") {
-      open = false;
-    }
+    if (e.target === e.currentTarget) open = false;
   }
 </script>
-
-<svelte:window on:keydown={handleKeydown} />
 
 {#if open}
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <!-- svelte-ignore a11y_no_static_element_interactions -->
   <div class="scrim" onclick={handleScrimClick}>
-    <div class="panel" role="dialog" aria-label="Settings">
+    <div class="panel" role="dialog" aria-label="Settings" bind:this={panel}>
       <header>
-        <h2>Settings</h2>
-        <button class="icon" aria-label="Close settings" onclick={() => (open = false)}>✕</button>
+        <span class="title">settings</span>
+        <span class="esc">esc to close</span>
       </header>
 
-      <div class="row">
-        <label for="theme">Theme</label>
-        <select id="theme" bind:value={prefs.theme}>
-          {#each themes as t}
-            <option value={t.id}>{t.label}</option>
-          {/each}
-        </select>
-      </div>
+      <div class="rows">
+        {#each rows as row, i}
+          {#if i === 0 || rows[i - 1].section !== row.section}
+            <div class="shead">{row.section}</div>
+          {/if}
 
-      <div class="row">
-        <label for="font">Font size ({prefs.font_size}px)</label>
-        <select id="font" bind:value={prefs.font_size}>
-          {#each fontSizes as size}
-            <option value={size}>{size}px</option>
-          {/each}
-        </select>
-      </div>
-
-      <div class="row">
-        <label for="tab">Tab width ({prefs.tab_size})</label>
-        <select id="tab" bind:value={prefs.tab_size}>
-          {#each tabSizes as size}
-            <option value={size}>{size}</option>
-          {/each}
-        </select>
-      </div>
-
-      <div class="row">
-        <label for="fontfamily">Font family</label>
-        <input
-          id="fontfamily"
-          type="text"
-          placeholder="JetBrains Mono"
-          value={prefs.font_family ?? ""}
-          onchange={(e) => (prefs.font_family = e.currentTarget.value.trim() || "JetBrains Mono")}
-        />
-      </div>
-
-      <div class="row">
-        <label for="width">Text column width ({prefs.editor_max_width ?? 1040}px)</label>
-        <select id="width" bind:value={prefs.editor_max_width}>
-          {#each widths as w}
-            <option value={w}>{w}px</option>
-          {/each}
-        </select>
-      </div>
-
-      <div class="row toggle">
-        <span>
-          <strong>Typewriter scrolling</strong>
-          <small>Keep the active line vertically centered.</small>
-        </span>
-        <input type="checkbox" bind:checked={prefs.typewriter} />
-      </div>
-
-      <div class="row toggle">
-        <span>
-          <strong>Line numbers</strong>
-          <small>Display line numbers in the gutter.</small>
-        </span>
-        <input type="checkbox" bind:checked={prefs.line_numbers} />
-      </div>
-
-      <div class="shortcuts-section">
-        <div class="shortcuts-header">
-          <h3>Keybindings</h3>
-          <span class="shortcuts-subtitle">Click a shortcut, then press the new keys</span>
-        </div>
-
-        <div class="bind-list">
-          {#each ACTIONS as action (action.id)}
-            {@const custom = !!prefs.keybindings?.[action.id]}
-            <div class="bind-row">
-              <span class="desc">{action.label}</span>
-              <span class="bind-controls">
+          <!-- svelte-ignore a11y_click_events_have_key_events -->
+          <!-- svelte-ignore a11y_no_static_element_interactions -->
+          <div class="srow" class:sel={i === sel} onclick={() => (sel = i)}>
+            {#if row.kind === "choice"}
+              <span class="label">{row.label}</span>
+              <span class="value">
+                <button class="arrow" tabindex="-1" onclick={() => cycle(row, -1)}>‹</button>
+                <span class="val">{labelOf(row, prefs)}</span>
+                <button class="arrow" tabindex="-1" onclick={() => cycle(row, 1)}>›</button>
+              </span>
+            {:else if row.kind === "toggle"}
+              <span class="label">
+                {row.label}<small>{row.hint}</small>
+              </span>
+              <span class="value">
+                <button
+                  class="check"
+                  tabindex="-1"
+                  aria-pressed={!!prefs[row.key]}
+                  onclick={() => set(row.key, !prefs[row.key])}
+                >
+                  {prefs[row.key] ? "[x]" : "[ ]"}
+                </button>
+              </span>
+            {:else if row.kind === "text"}
+              <span class="label">{row.label}</span>
+              <span class="value">
+                <input
+                  bind:this={fontInput}
+                  type="text"
+                  spellcheck="false"
+                  placeholder="JetBrains Mono"
+                  value={prefs.font_family ?? ""}
+                  onfocus={() => (sel = i)}
+                  onchange={(e) =>
+                    set("font_family", e.currentTarget.value.trim() || "JetBrains Mono")}
+                />
+              </span>
+            {:else}
+              <span class="label">{row.action.label}</span>
+              <span class="value">
                 <button
                   class="keys-btn"
-                  class:recording={recording === action.id}
-                  class:custom
-                  onclick={() => (recording === action.id ? stopRecording() : startRecording(action.id))}
+                  class:recording={recording === row.action.id}
+                  class:custom={!!prefs.keybindings?.[row.action.id]}
+                  tabindex="-1"
+                  onclick={() =>
+                    recording === row.action.id
+                      ? stopRecording()
+                      : startRecording(row.action.id)}
                   title="Change shortcut"
                 >
-                  {#if recording === action.id}
-                    <span class="press">Press keys… (Esc cancels)</span>
+                  {#if recording === row.action.id}
+                    <span class="press">press keys…</span>
                   {:else}
-                    {#each bindings[action.id] as combo, i}
-                      {#if i > 0}<span class="or">or</span>{/if}
-                      <span class="keys">
-                        {#each comboParts(combo) as part}<kbd>{part}</kbd>{/each}
+                    {#each bindings[row.action.id] as combo, n}
+                      {#if n > 0}<span class="or">or</span>{/if}
+                      <span class="combo">
+                        {#each comboParts(combo) as part, pi}{#if pi > 0}<span class="plus">+</span>{/if}<kbd>{part}</kbd>{/each}
                       </span>
                     {/each}
                   {/if}
                 </button>
                 <button
                   class="reset"
+                  tabindex="-1"
                   aria-label="Reset to default"
                   title="Reset to default"
-                  disabled={!custom}
-                  onclick={() => setBinding(action.id, null)}
+                  disabled={!prefs.keybindings?.[row.action.id]}
+                  onclick={() => setBinding(row.action.id, null)}
                 >
                   ↺
                 </button>
               </span>
-            </div>
-          {/each}
-        </div>
-
-        {#if recordError}
-          <div class="bind-error" role="alert">{recordError}</div>
-        {/if}
-
-        <div class="fixed-keys">
-          <span class="fixed-title">Fixed</span>
-          <span><kbd>Enter</kbd> / <kbd>Shift</kbd><kbd>Enter</kbd> next / previous match in the search box ·
-            <kbd>Esc</kbd> close search or this dialog ·
-            <kbd>Ctrl</kbd><kbd>D</kbd> select next occurrence ·
-            <kbd>Ctrl</kbd><kbd>Alt</kbd><kbd>G</kbd> go to line</span>
-        </div>
-
-        <div class="math-hint">
-          <span class="math-badge">LaTeX</span>
-          <span><code>$E=mc^2$</code> inline · <code>$$\int...$$</code> block rendered in Split and Preview</span>
-        </div>
-
-        <div class="config-hint">
-          <span class="config-label">Config</span>
-          <span><code>~/.config/cedilha/config.toml</code> (auto-reloads on save)</span>
-        </div>
+            {/if}
+          </div>
+        {/each}
       </div>
+
+      {#if recordError}
+        <div class="error" role="alert">{recordError}</div>
+      {/if}
+
+      <footer>
+        <span><kbd>↑</kbd><kbd>↓</kbd> move</span>
+        <span><kbd>←</kbd><kbd>→</kbd> change</span>
+        <span><kbd>enter</kbd> edit</span>
+        <span><kbd>⌫</kbd> reset key</span>
+        <span class="path">~/.config/cedilha/config.toml</span>
+      </footer>
     </div>
   </div>
 {/if}
@@ -257,314 +385,206 @@
   .scrim {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(0, 0, 0, 0.35);
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     justify-content: center;
+    padding-top: 8vh;
     z-index: 100;
-    backdrop-filter: blur(4px);
   }
 
   .panel {
-    width: min(520px, 92vw);
-    max-height: 88vh;
-    overflow-y: auto;
+    width: min(580px, 94vw);
+    max-height: 82vh;
+    display: flex;
+    flex-direction: column;
     background: var(--bg-elev);
     border: 1px solid var(--border);
-    border-radius: 10px;
-    padding: 20px 24px;
-    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    border-radius: var(--radius);
+    font-size: var(--text-min);
   }
 
   header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 16px;
+    padding: 8px 14px;
+    border-bottom: 1px solid var(--border);
   }
 
-  h2 {
-    margin: 0;
-    font-size: 18px;
-    font-weight: 700;
+  .title {
     color: var(--accent);
+    font-weight: 700;
   }
 
-  .icon {
-    background: transparent;
-    border: none;
-    font-size: 16px;
-    padding: 4px 8px;
+  .esc {
     color: var(--fg-dim);
   }
 
-  .icon:hover {
-    color: var(--fg);
+  .rows {
+    overflow-y: auto;
+    padding: 4px 0 8px;
   }
 
-  .row {
+  .shead {
+    padding: 10px 14px 4px;
+    color: var(--fg-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: var(--text-min);
+  }
+
+  .srow {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    padding: 12px 0;
-    border-bottom: 1px solid var(--border);
+    padding: 4px 14px 4px 12px;
+    border-left: 2px solid transparent;
+    min-height: 28px;
   }
 
-  .row label {
-    font-size: 14px;
+  .srow.sel {
+    background: var(--bg-surface);
+    border-left-color: var(--accent);
   }
 
-  .row small {
+  .label {
+    color: var(--fg);
+  }
+
+  .label small {
+    margin-left: 10px;
     color: var(--fg-dim);
-    display: block;
-    font-size: 12px;
-    margin-top: 2px;
+    font-size: var(--text-min);
   }
 
-  .row select {
-    min-width: 150px;
-  }
-
-  .row.toggle {
-    display: grid;
-    grid-template-columns: 1fr auto;
+  .value {
+    display: inline-flex;
     align-items: center;
-  }
-
-  .row input[type="checkbox"] {
-    width: 18px;
-    height: 18px;
-    accent-color: var(--accent);
-    cursor: pointer;
-  }
-
-  .shortcuts-section {
-    margin-top: 18px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-  }
-
-  .shortcuts-header {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 12px;
-  }
-
-  .shortcuts-header h3 {
-    margin: 0;
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.08em;
-    color: var(--accent);
-  }
-
-  .shortcuts-subtitle {
-    font-size: 11px;
-    color: var(--fg-dim);
-  }
-
-  .bind-list {
-    display: flex;
-    flex-direction: column;
     gap: 6px;
   }
 
-  .bind-row {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 10px;
-    padding: 4px 8px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+  .val {
+    min-width: 120px;
+    text-align: center;
+    color: var(--accent);
   }
 
-  .bind-row .desc {
-    color: var(--fg);
-    font-size: 12px;
+  /* Plain text controls: no boxes, no gradients. */
+  button {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+    padding: 0 4px;
+    color: var(--fg-dim);
+    cursor: pointer;
+    font: inherit;
   }
 
-  .bind-controls {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+  button:hover:not(:disabled) {
+    color: var(--accent);
+  }
+
+  .arrow {
+    font-size: 15px;
+    line-height: 1;
+  }
+
+  .check {
+    color: var(--accent);
+  }
+
+  input[type="text"] {
+    width: 180px;
+    background: transparent;
+    color: var(--accent);
+    border: none;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    padding: 2px 2px;
+    text-align: right;
+    font: inherit;
+    outline: none;
+  }
+
+  input[type="text"]:focus {
+    border-bottom-color: var(--accent);
   }
 
   .keys-btn {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    min-width: 90px;
-    justify-content: center;
-    padding: 3px 8px;
-    background: transparent;
-    border: 1px solid transparent;
-    border-radius: var(--radius);
-    cursor: pointer;
+    padding: 2px 4px;
   }
 
-  .keys-btn:hover {
-    border-color: var(--border);
+  .combo {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  .plus {
+    color: var(--fg-dim);
+    opacity: 0.5;
+    margin: 0 2px;
+  }
+
+  kbd {
+    font-family: var(--font-mono);
+    font-size: var(--text-min);
+    color: var(--fg);
   }
 
   .keys-btn.custom kbd {
-    border-color: var(--accent);
+    color: var(--accent);
   }
 
   .keys-btn.recording {
-    border-color: var(--accent);
-    background: var(--bg-elev);
+    outline: 1px solid var(--accent);
   }
 
   .press {
-    font-size: 11px;
     color: var(--accent);
   }
 
   .or {
-    font-size: 10px;
     color: var(--fg-dim);
   }
 
   .reset {
-    background: transparent;
-    border: none;
-    color: var(--fg-dim);
-    cursor: pointer;
-    padding: 2px 6px;
     font-size: 14px;
   }
 
-  .reset:hover:not(:disabled) {
-    color: var(--accent);
-  }
-
   .reset:disabled {
-    opacity: 0.25;
+    opacity: 0.2;
     cursor: default;
   }
 
-  .bind-error {
-    margin-top: 8px;
-    padding: 6px 10px;
-    font-size: 11px;
+  .error {
+    margin: 0 14px 8px;
+    padding: 4px 8px;
     color: var(--danger);
     border: 1px solid var(--danger);
     border-radius: var(--radius);
   }
 
-  .fixed-keys {
-    margin-top: 10px;
-    font-size: 11px;
-    color: var(--fg-dim);
-    line-height: 1.8;
-  }
-
-  .fixed-title {
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    font-size: 9px;
-    margin-right: 6px;
-  }
-
-  .keys {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-  }
-
-  kbd {
-    display: inline-block;
-    padding: 2px 5px;
-    font-family: var(--font-mono);
-    font-size: 10px;
-    font-weight: 600;
-    line-height: 1.2;
-    color: var(--fg);
-    background: var(--bg-elev);
-    border: 1px solid var(--border);
-    border-radius: 3px;
-    box-shadow: 0 1px 0 var(--border);
-  }
-
-  .math-hint {
+  footer {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-    margin-top: 14px;
-    padding: 6px 10px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    font-size: 11px;
+    gap: 6px 16px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--border);
     color: var(--fg-dim);
-    line-height: 1.4;
   }
 
-  .math-badge {
-    background: var(--accent);
-    color: var(--bg);
-    font-size: 9px;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 3px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  .math-hint code {
-    font-family: var(--font-mono);
-    color: var(--fg);
-    background: var(--bg-elev);
-    padding: 1px 4px;
-    border-radius: 3px;
-  }
-
-  .config-hint {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 8px;
-    padding: 6px 10px;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    font-size: 11px;
+  footer kbd {
     color: var(--fg-dim);
-    line-height: 1.4;
   }
 
-  .config-label {
-    background: var(--bg-elev);
-    color: var(--accent);
-    border: 1px solid var(--border);
-    font-size: 9px;
-    font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 3px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  .config-hint code {
-    font-family: var(--font-mono);
-    color: var(--fg);
-    background: var(--bg-elev);
-    padding: 1px 4px;
-    border-radius: 3px;
-  }
-
-  .row input[type="text"] {
-    min-width: 150px;
-    background: var(--bg-surface);
-    color: var(--fg);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 5px 8px;
+  footer .path {
+    margin-left: auto;
+    opacity: 0.7;
   }
 </style>

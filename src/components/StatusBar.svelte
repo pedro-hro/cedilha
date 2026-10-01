@@ -1,49 +1,32 @@
 <script lang="ts">
-  export let path: string | null = null;
   export let dirty = false;
   export let wordCount = 0;
   export let charCount = 0;
-  export let lineCount = 0;
+  export let line = 1;
+  export let col = 1;
   export let notice = "";
-
-  function basename(p: string): string {
-    return p.split(/[/\\]/).pop() || p;
-  }
-
-  // ~200 words per minute reading estimate
-  const WPM = 200;
-  $: minutes = Math.max(1, Math.round(wordCount / WPM));
-  $: readingTime = wordCount === 0 ? "—" : `${minutes} min read`;
-
-  $: statusSegments = [
-    ...(notice ? [{ label: notice, cls: "error" }] : []),
-    { label: path ? basename(path) : "new document", cls: "path" },
-    { label: dirty ? "● unsaved" : "✓ saved", cls: dirty ? "dirty" : "clean" },
-    { label: `${wordCount.toLocaleString()} words` },
-    { label: `${charCount.toLocaleString()} chars` },
-    { label: `${lineCount.toLocaleString()} lines` },
-    { label: readingTime, cls: "muted" },
-  ];
 </script>
 
 <footer class="status-bar" role="status" aria-live="polite">
-  {#each statusSegments as seg, i (seg.label)}
-    <span class="seg {seg.cls}">
-      {#if i > 0}<span class="dot">·</span>{/if}{seg.label}
-    </span>
-  {/each}
+  <span class="seg pos">ln {line}, col {col}</span>
+  <span class="seg" class:dirty class:clean={!dirty}>{dirty ? "● unsaved" : "✓ saved"}</span>
+  {#if notice}<span class="seg error">{notice}</span>{/if}
+
+  <span class="spacer"></span>
+
+  <span class="seg">{wordCount.toLocaleString()} words</span>
+  <span class="seg">{charCount.toLocaleString()} chars</span>
 </footer>
 
 <style>
   .status-bar {
     display: flex;
     align-items: center;
-    gap: 4px;
-    height: var(--statusbar-height, 26px);
-    padding: 0 12px;
+    height: var(--statusbar-height);
+    padding: 0 4px;
     background: var(--bg-elev);
     border-top: 1px solid var(--border);
-    font-size: 12px;
+    font-size: var(--text-min);
     color: var(--fg-dim);
     user-select: none;
     overflow: hidden;
@@ -53,22 +36,25 @@
   .seg {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    padding: 0 6px;
-    border-radius: 3px;
-  }
-
-  .dot {
-    opacity: 0.5;
-  }
-
-  .path {
-    color: var(--fg);
-    font-weight: 600;
-    max-width: 40%;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    padding: 0 10px;
     white-space: nowrap;
+  }
+
+  .seg + .seg {
+    border-left: 1px solid var(--border);
+  }
+
+  .spacer {
+    flex: 1 1 auto;
+    border: none;
+  }
+
+  .spacer + .seg {
+    border-left: none;
+  }
+
+  .pos {
+    color: var(--fg);
   }
 
   .dirty {
@@ -81,10 +67,7 @@
 
   .error {
     color: var(--danger);
-  }
-
-  .muted {
-    margin-left: auto;
-    opacity: 0.8;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 </style>

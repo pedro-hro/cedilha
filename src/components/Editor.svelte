@@ -17,6 +17,7 @@
   const dispatch = createEventDispatcher<{
     change: string;
     scroll: void;
+    cursor: { line: number; col: number };
   }>();
 
   export let content = "";
@@ -35,6 +36,11 @@
       if (update.docChanged) {
         content = update.state.doc.toString();
         dispatch("change", content);
+      }
+      if (update.docChanged || update.selectionSet) {
+        const head = update.state.selection.main.head;
+        const line = update.state.doc.lineAt(head);
+        dispatch("cursor", { line: line.number, col: head - line.from + 1 });
       }
     });
   }
@@ -127,6 +133,34 @@
     const y = block.top + frac * block.height;
     const offset = view.documentTop - scroller.getBoundingClientRect().top + scroller.scrollTop;
     scroller.scrollTop = y + offset;
+  }
+
+  // Hand a key press that landed outside the editor (focus fell to <body>, e.g. after
+  // clicking the preview) to the editor, so the keyboard keeps working.
+  export function forwardKey(e: KeyboardEvent): boolean {
+    if (!view || e.isComposing) return false;
+    view.focus();
+    if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
+      view.dispatch(view.state.replaceSelection(e.key), {
+        userEvent: "input.type",
+        scrollIntoView: true,
+      });
+      return true;
+    }
+    // Navigation, Enter, Backspace, Tab, shortcuts: let CodeMirror's own keymaps handle it.
+    view.contentDOM.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: e.key,
+        code: e.code,
+        ctrlKey: e.ctrlKey,
+        shiftKey: e.shiftKey,
+        altKey: e.altKey,
+        metaKey: e.metaKey,
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    return true;
   }
 
   export function focusEditor() {

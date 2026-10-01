@@ -10,8 +10,11 @@
   --font-mono: "JetBrains Mono", "Iosevka", "Fira Code", "DejaVu Sans Mono",
     "Ubuntu Mono", monospace;
   --editor-max-width: 1040px;
-  --radius: 6px;
-  --statusbar-height: 26px;
+  /* Flat, terminal-like: one small radius, one minimum text size, no shadows or blur. */
+  --radius: 2px;
+  --text-min: 12px;
+  --toolbar-height: 32px;
+  --statusbar-height: 24px;
 }
 
 /* --------------------------------- Omarchy --------------------------------- */
@@ -176,7 +179,7 @@ a {
 
 *::-webkit-scrollbar-thumb {
   background: var(--border);
-  border-radius: 4px;
+  border-radius: var(--radius);
 }
 
 *::-webkit-scrollbar-track {

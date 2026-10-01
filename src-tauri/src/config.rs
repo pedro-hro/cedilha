@@ -34,6 +34,9 @@ pub struct Prefs {
     /// Max content column width in pixels (default: 1040).
     #[serde(default = "default_editor_max_width")]
     pub editor_max_width: u32,
+    /// View shown on launch: "edit", "split" or "preview".
+    #[serde(default = "default_view")]
+    pub default_view: String,
     /// Keybinding overrides: action id -> key combos (e.g. `save = ["Ctrl+S"]`). Actions
     /// not listed keep the defaults that live in the frontend.
     #[serde(default)]
@@ -60,6 +63,10 @@ fn default_true() -> bool {
     true
 }
 
+fn default_view() -> String {
+    "edit".to_string()
+}
+
 fn default_font_family() -> String {
     "JetBrains Mono".to_string()
 }
@@ -78,6 +85,7 @@ impl Default for Prefs {
             line_numbers: true,
             font_family: default_font_family(),
             editor_max_width: default_editor_max_width(),
+            default_view: default_view(),
             keybindings: BTreeMap::new(),
         }
     }
@@ -148,6 +156,9 @@ tab_size = {}
 editor_max_width = {}
 
 # Behavior
+# View shown on launch: "edit", "split" or "preview"
+default_view = {}
+
 # Keep the active line vertically centered (typewriter scrolling)
 typewriter = {}
 
@@ -159,6 +170,7 @@ line_numbers = {}
         prefs.font_size,
         prefs.tab_size,
         prefs.editor_max_width,
+        quote(&prefs.default_view),
         prefs.typewriter,
         prefs.line_numbers,
         keybindings

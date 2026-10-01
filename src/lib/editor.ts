@@ -143,7 +143,7 @@ export function createEditor(opts: FullEditorOptions): EditorState {
   const extensions: Extension[] = [
     baseTheme,
     highlightActiveLine(),
-    markdown({ markdownLanguage }),
+    markdown({ base: markdownLanguage }),
     // Fixed, opinionated word-wrapping
     EditorView.lineWrapping,
     tabSizeCompartment.of(getTabSizeExtension(opts.tabSize)),
@@ -151,7 +151,7 @@ export function createEditor(opts: FullEditorOptions): EditorState {
     lineNumbersCompartment.of(getLineNumbersExtension(opts.lineNumbers ?? false)),
     search({ top: true }),
     searchKeysCompartment.of(getSearchKeysExtension(opts.findNextKeys, opts.findPrevKeys)),
-    keymap.of([standardKeymap, indentWithTab]),
+    keymap.of([...standardKeymap, indentWithTab]),
     EditorState.allowMultipleSelections.of(true),
   ];
 

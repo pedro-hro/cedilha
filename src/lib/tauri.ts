@@ -12,6 +12,8 @@ export interface Prefs {
   line_numbers?: boolean;
   font_family?: string;
   editor_max_width?: number;
+  /** View on launch: "edit" | "split" | "preview". */
+  default_view?: string;
   /** Keybinding overrides: action id -> key combos. See lib/keybindings.ts. */
   keybindings?: Record<string, string[]>;
 }
@@ -24,6 +26,11 @@ export interface LoadResult {
 
 export function openFile(): Promise<LoadResult> {
   return invoke("open_file");
+}
+
+/** The file named on the command line, if any (consumed once). */
+export function initialFile(): Promise<LoadResult | null> {
+  return invoke("initial_file");
 }
 
 export function readDocument(path: string): Promise<string> {
