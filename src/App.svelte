@@ -352,6 +352,7 @@
     display: flex;
     align-items: center;
     justify-content: center;
+    height: 100%;
   }
 
   .logo {
@@ -363,6 +364,8 @@
     user-select: none;
     padding: 0 4px;
     cursor: default;
+    /* Optical correction for the cedilla descender hook */
+    transform: translateY(-3px);
   }
 
   .doc-actions,
