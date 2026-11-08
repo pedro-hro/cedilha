@@ -4,6 +4,7 @@
   import { convertFileSrc } from "@tauri-apps/api/core";
   import * as api from "../lib/tauri";
   import { resolveLocalImage } from "../lib/images";
+  import { smoothScrollerFor } from "../lib/smoothScroll";
 
   export let content = "";
   export let centered = false;
@@ -315,7 +316,7 @@
             setupMathRendering();
           }
         }
-      } catch (err) {
+      } catch {
         if (reqId === currentRequestId) {
           renderedHtml = `<pre class="preview-empty">Failed to render markdown</pre>`;
         }
@@ -339,12 +340,97 @@
     }
   }
 
+  // ----- keyboard scrolling -----
+  // The preview has no focus of its own, so App forwards keys here in preview-only mode.
+  // Everything goes through one SmoothScroller: taps and page jumps retarget its animation,
+  // and a held arrow key switches to constant-velocity scrolling that ignores the OS
+  // auto-repeat rate (which is what makes native keyboard scrolling look choppy).
+  const ARROW_STEP = 64; // px for a single tap
+  const HOLD_SPEED = 1100; // px/s while an arrow key is held
+  let heldKey: string | null = null;
+
+  /** Returns true when the key was a scroll key and has been handled. */
+  export function handleKey(e: KeyboardEvent): boolean {
+    if (!scrollContainer || e.altKey || e.metaKey || e.isComposing) return false;
+    const s = smoothScrollerFor(scrollContainer);
+    const page = scrollContainer.clientHeight * 0.9;
+    const max = scrollContainer.scrollHeight - scrollContainer.clientHeight;
+    let to: number | null = null;
+    let by = 0;
+
+    if (e.ctrlKey) {
+      if (e.shiftKey) return false;
+      if (e.key === "d") by = page / 2;
+      else if (e.key === "u") by = -page / 2;
+      else if (e.key === "Home") to = 0;
+      else if (e.key === "End") to = max;
+      else return false;
+    } else {
+      switch (e.key) {
+        case "ArrowDown":
+        case "ArrowUp": {
+          if (e.shiftKey) return false;
+          const dir = e.key === "ArrowDown" ? 1 : -1;
+          if (!e.repeat) s.scrollBy(dir * ARROW_STEP);
+          else if (!s.startHold(dir, HOLD_SPEED)) s.scrollBy(dir * ARROW_STEP);
+          heldKey = e.key;
+          e.preventDefault();
+          return true;
+        }
+        case "PageDown":
+          by = page;
+          break;
+        case "PageUp":
+          by = -page;
+          break;
+        case " ":
+          by = e.shiftKey ? -page : page;
+          break;
+        case "Home":
+          to = 0;
+          break;
+        case "End":
+          to = max;
+          break;
+        default:
+          return false;
+      }
+    }
+
+    if (to !== null) s.scrollTo(to);
+    else s.scrollBy(by);
+    e.preventDefault();
+    return true;
+  }
+
+  function releaseHeldKey(e?: KeyboardEvent) {
+    if (heldKey === null || (e && e.key !== heldKey)) return;
+    heldKey = null;
+    if (scrollContainer) smoothScrollerFor(scrollContainer).endHold();
+  }
+
+  /** Smoothly scroll the element with this id (an in-page link target) to the top. */
+  export function scrollToId(id: string): boolean {
+    const el = container?.querySelector<HTMLElement>(`[id="${CSS.escape(id)}"]`);
+    if (!el || !scrollContainer) return false;
+    const s = smoothScrollerFor(scrollContainer);
+    const shift = scrollContainer.scrollTop - s.destination();
+    const y =
+      el.getBoundingClientRect().top + shift - scrollContainer.getBoundingClientRect().top + s.destination();
+    s.scrollTo(y - 12);
+    return true;
+  }
+
   onDestroy(() => {
+    if (scrollContainer) smoothScrollerFor(scrollContainer).dispose();
     if (debounceTimeout) clearTimeout(debounceTimeout);
+    if (scrollSettleTimer) clearTimeout(scrollSettleTimer);
     if (queueRaf !== null) cancelAnimationFrame(queueRaf);
     if (mathObserver) mathObserver.disconnect();
   });
 </script>
+
+<svelte:window on:keyup={releaseHeldKey} on:blur={() => releaseHeldKey()} />
 
 <div
   bind:this={scrollContainer}
@@ -362,6 +448,7 @@
     flex: 1 1 auto;
     height: 100%;
     overflow-y: auto;
+    overscroll-behavior: contain;
     background: var(--bg);
     color: var(--fg);
     user-select: text;

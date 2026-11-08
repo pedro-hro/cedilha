@@ -4,11 +4,10 @@
 // scrolling + keyboard navigation, with reactive Compartments for runtime settings.
 
 import { EditorState, type Extension } from "@codemirror/state";
-import { EditorView, keymap } from "@codemirror/view";
+import { EditorView, keymap, highlightActiveLine } from "@codemirror/view";
 import { standardKeymap, indentWithTab } from "@codemirror/commands";
 import { markdown, markdownLanguage } from "@codemirror/lang-markdown";
 import { search } from "@codemirror/search";
-import { highlightActiveLine } from "@codemirror/view";
 import {
   type EditorOptions,
   tabSizeCompartment,
@@ -20,6 +19,7 @@ import {
   getLineNumbersExtension,
 } from "./codemirror/options";
 import { createTypewriterExtension } from "./codemirror/typewriter";
+import { smoothScrollExtension } from "./codemirror/smoothScroll";
 
 export interface FullEditorOptions extends EditorOptions {
   content: string;
@@ -146,6 +146,7 @@ export function createEditor(opts: FullEditorOptions): EditorState {
     markdown({ base: markdownLanguage }),
     // Fixed, opinionated word-wrapping
     EditorView.lineWrapping,
+    smoothScrollExtension(),
     tabSizeCompartment.of(getTabSizeExtension(opts.tabSize)),
     typewriterCompartment.of(createTypewriterExtension(opts.typewriter)),
     lineNumbersCompartment.of(getLineNumbersExtension(opts.lineNumbers ?? false)),

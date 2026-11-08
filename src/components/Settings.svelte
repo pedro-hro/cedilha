@@ -1,6 +1,7 @@
 <script lang="ts">
-  import { tick } from "svelte";
+  import { tick, onDestroy } from "svelte";
   import type { Prefs, OmarchyTheme } from "../lib/tauri";
+  import { smoothEnsureVisible } from "../lib/smoothScroll";
   import {
     ACTIONS,
     resolveBindings,
@@ -216,9 +217,11 @@
 
   function move(delta: number) {
     sel = Math.min(rows.length - 1, Math.max(0, sel + delta));
-    tick().then(() =>
-      panel?.querySelector(".srow.sel")?.scrollIntoView({ block: "nearest" }),
-    );
+    tick().then(() => {
+      const list = panel?.querySelector<HTMLElement>(".rows");
+      const row = panel?.querySelector<HTMLElement>(".srow.sel");
+      if (list && row) smoothEnsureVisible(list, row);
+    });
   }
 
   function onKey(e: KeyboardEvent) {
@@ -294,6 +297,11 @@
     window.removeEventListener("keydown", onKey, true);
     stopRecording();
   }
+
+  onDestroy(() => {
+    window.removeEventListener("keydown", onKey, true);
+    stopRecording();
+  });
 
   function handleScrimClick(e: MouseEvent) {
     if (e.target === e.currentTarget) open = false;
