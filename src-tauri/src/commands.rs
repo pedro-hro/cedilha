@@ -1,6 +1,6 @@
 //! Rust backend for Cedilha — file I/O, dialogs, and window helpers.
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashSet;
 use std::fs;
 use std::io::Write;
@@ -14,8 +14,6 @@ use tauri::Manager;
 
 /// Shared application state threaded through the command handlers.
 pub struct AppState {
-    /// The file currently open in the editor, if any.
-    pub current_path: Mutex<Option<PathBuf>>,
     /// Persisted user preferences (theme, font size, ...).
     pub prefs: Mutex<crate::config::Prefs>,
     /// Files the user picked through a native dialog. The read/write commands refuse
@@ -33,7 +31,6 @@ pub struct AppState {
 impl AppState {
     pub fn new(prefs: crate::config::Prefs) -> Self {
         AppState {
-            current_path: Mutex::new(None),
             prefs: Mutex::new(prefs),
             allowed: Mutex::new(HashSet::new()),
             disk_mtime: Mutex::new(None),
@@ -84,10 +81,17 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     let name = target
         .file_name()
         .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::InvalidInput, "path has no file name"))?;
-    let tmp = dir.join(format!(".{}.cedilha-tmp-{}", name.to_string_lossy(), std::process::id()));
+    // Unique per call, so concurrent saves of the same file never share a temp file.
+    static SEQ: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let tmp = dir.join(format!(
+        ".{}.cedilha-tmp-{}-{}",
+        name.to_string_lossy(),
+        std::process::id(),
+        SEQ.fetch_add(1, Ordering::Relaxed)
+    ));
 
     let result = (|| {
-        let mut f = fs::File::create(&tmp)?;
+        let mut f = fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
         f.write_all(bytes)?;
         f.sync_all()?;
         if let Ok(meta) = fs::metadata(&target) {
@@ -107,8 +111,7 @@ pub fn write_atomic(path: &Path, bytes: &[u8]) -> std::io::Result<()> {
     Ok(())
 }
 
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Serialize)]
 pub struct LoadResult {
     pub path: Option<String>,
     pub content: String,
@@ -159,7 +162,6 @@ pub async fn open_file(
     state.allow(&path);
     allow_document_images(&app, &path);
     state.remember_mtime(&path);
-    *state.current_path.lock().unwrap() = Some(path.clone());
 
     Ok(LoadResult {
         path: Some(path.to_string_lossy().into_owned()),
@@ -208,7 +210,6 @@ pub async fn initial_file(
     state.allow(&path);
     allow_document_images(&app, &path);
     state.remember_mtime(&path);
-    *state.current_path.lock().unwrap() = Some(path.clone());
     Ok(Some(LoadResult {
         path: Some(path.to_string_lossy().into_owned()),
         content,
@@ -253,7 +254,6 @@ pub async fn save_document(
 
     write_atomic(&p, content.as_bytes()).map_err(|e| format!("write failed for {path}: {e}"))?;
     state.remember_mtime(&p);
-    *state.current_path.lock().unwrap() = Some(p);
     Ok(())
 }
 
@@ -275,7 +275,6 @@ pub async fn save_as_file(
     state.allow(&path);
     allow_document_images(&app, &path);
     state.remember_mtime(&path);
-    *state.current_path.lock().unwrap() = Some(path.clone());
     Ok(Some(path.to_string_lossy().into_owned()))
 }
 
@@ -293,8 +292,7 @@ pub fn cancel_close(state: tauri::State<AppState>) {
 
 /// Create a new empty document.
 #[tauri::command]
-pub fn new_document(state: tauri::State<AppState>) -> String {
-    *state.current_path.lock().unwrap() = None;
+pub fn new_document() -> String {
     String::new()
 }
 
@@ -648,7 +646,6 @@ mod tests {
     fn test_sourcepos_attributes() {
         let input = "# Título\n\nação $x$ e\n\n$$y$$\n\n- a\n- b\n\n| a | b |\n|---|---|\n| 1 | 2 |\n";
         let html = render_with_sourcepos(input);
-        println!("{html}");
         assert!(html.contains("<h1 data-src-start=\"0\" data-src-end=\"9\">"));
         assert!(html.contains("<p data-src-start=\"10\""));
         assert!(html.contains("math-inline\" data-src-start=\"15\" data-src-end=\"18\""));
@@ -663,7 +660,6 @@ mod tests {
             [ok](https://x.y/a:b) [rel](a/b.md) ![i](data:text/html;base64,AAAA) \
             ![p](data:image/png;base64,AAAA)\n\n# H {onclick=alert(1) #id .cls}\n";
         let html = render_with_sourcepos(input);
-        println!("{html}");
         assert!(!html.contains("<img src=x"), "raw html must be escaped");
         assert!(!html.contains("<script"));
         assert!(!html.contains("<b onclick"));
@@ -676,27 +672,4 @@ mod tests {
         assert!(html.contains("data:image/png"));
         assert!(html.contains("id=\"id\"") && html.contains("class=\"cls\""));
     }
-
-    #[test]
-    fn test_render_markdown_math() {
-        tauri::async_runtime::block_on(async {
-            let input = "Math with symbols: $x < y$ and $a > b$ and $a & b$\n";
-            let res = render_markdown(input.to_string()).await.unwrap();
-            println!("RENDERED HTML:\n{}", res);
-        });
-    }
-
-    #[test]
-    fn test_render_huge_galaxy_book() {
-        let path = "/tmp/sample.md";
-        if let Ok(content) = std::fs::read_to_string(path) {
-            let start = std::time::Instant::now();
-            let html = tauri::async_runtime::block_on(async {
-                render_markdown(content).await.unwrap()
-            });
-            let elapsed = start.elapsed();
-            println!("Huge file parsed in {:?}! HTML len: {}", elapsed, html.len());
-        }
-    }
 }
-

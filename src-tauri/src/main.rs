@@ -12,10 +12,25 @@ fn main() {
     #[cfg(target_os = "linux")]
     std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
 
-    let initial_prefs = config::load_once().unwrap_or_default();
+    let initial_prefs = config::load_once();
+
+    let transparency_rounded = initial_prefs.rounded_corners.clone();
 
     tauri::Builder::default()
-        .setup(|app| {
+        .setup(move |app| {
+            // A transparent window is only needed for the app-drawn rounded corners. Under
+            // Hyprland (blur on) a transparent surface is composited with the blur behind it
+            // and WebKitGTK can leave most of it unpainted, so keep the window opaque
+            // whenever the corners are not app-drawn.
+            let transparent = match transparency_rounded.as_str() {
+                "always" => true,
+                "never" => false,
+                _ => !crate::commands::is_tiling_wm(),
+            };
+            let config = app.config().app.windows[0].clone();
+            tauri::WebviewWindowBuilder::from_config(app.handle(), &config)?
+                .transparent(transparent)
+                .build()?;
             crate::omarchy::start_theme_watcher(app.handle().clone());
             crate::config::start_config_watcher(app.handle().clone());
             Ok(())

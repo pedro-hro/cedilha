@@ -9,7 +9,7 @@
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Prefs {
@@ -110,7 +110,7 @@ impl Default for Prefs {
 }
 
 /// Resolve the directory used to store configuration.
-pub fn config_dir() -> PathBuf {
+fn config_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("XDG_CONFIG_HOME") {
         if !dir.is_empty() {
             return PathBuf::from(dir).join("cedilha");
@@ -125,12 +125,12 @@ pub fn config_path() -> PathBuf {
     config_dir().join("config.toml")
 }
 
-pub fn legacy_json_path() -> PathBuf {
+fn legacy_json_path() -> PathBuf {
     config_dir().join("prefs.json")
 }
 
 /// Generate a well-commented TOML file string.
-pub fn generate_toml(prefs: &Prefs) -> String {
+fn generate_toml(prefs: &Prefs) -> String {
     // Properly quoted/escaped TOML string literals (including the surrounding quotes).
     let quote = |s: &str| toml::Value::String(s.to_string()).to_string();
 
@@ -213,21 +213,21 @@ line_numbers = {}
 }
 
 /// Load configuration from disk, with fallback and migration from prefs.json.
-pub fn load_once() -> Result<Prefs, std::io::Error> {
+pub fn load_once() -> Prefs {
     let toml_file = config_path();
     if toml_file.exists() {
         match std::fs::read_to_string(&toml_file)
             .map_err(|e| e.to_string())
             .and_then(|c| toml::from_str::<Prefs>(&c).map_err(|e| e.to_string()))
         {
-            Ok(prefs) => return Ok(prefs),
+            Ok(prefs) => return prefs,
             Err(e) => {
                 // Leave the user's file alone; run with defaults until it is fixed.
                 eprintln!(
                     "cedilha: could not read {}: {e}. Using defaults; the file was not modified.",
                     toml_file.display()
                 );
-                return Ok(Prefs::default());
+                return Prefs::default();
             }
         }
     }
@@ -244,14 +244,14 @@ pub fn load_once() -> Result<Prefs, std::io::Error> {
                     legacy.editor_max_width = default_editor_max_width();
                 }
                 let _ = save(&legacy);
-                return Ok(legacy);
+                return legacy;
             }
         }
     }
 
     let default_prefs = Prefs::default();
     let _ = save(&default_prefs);
-    Ok(default_prefs)
+    default_prefs
 }
 
 /// Persist configuration to config.toml with comments.
@@ -279,6 +279,10 @@ pub fn start_config_watcher(app_handle: AppHandle) {
             if let Ok(content) = std::fs::read_to_string(&path) {
                 if last_content.as_deref() != Some(&content) {
                     if let Ok(new_prefs) = toml::from_str::<Prefs>(&content) {
+                        // Keep what get_prefs / open_file hand out in step with the file.
+                        if let Ok(mut prefs) = app_handle.state::<crate::commands::AppState>().prefs.lock() {
+                            *prefs = new_prefs.clone();
+                        }
                         let _ = app_handle.emit("config-changed", &new_prefs);
                     }
                     last_content = Some(content);

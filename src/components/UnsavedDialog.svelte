@@ -1,7 +1,7 @@
 <script lang="ts">
   // In-app "unsaved changes" prompt. Needs no zenity/kdialog/portal, so it works the same on
   // every distro, and it is fully keyboard driven (S / D / C, arrows + Enter, Esc cancels).
-  import { onMount, onDestroy } from "svelte";
+  import { onMount } from "svelte";
   import type { UnsavedChoice } from "../lib/tauri";
 
   export let name = "";
@@ -14,7 +14,6 @@
   ];
 
   let sel = 0;
-  let listening = false;
 
   function onKey(e: KeyboardEvent) {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
@@ -37,10 +36,7 @@
   onMount(() => {
     (document.activeElement as HTMLElement | null)?.blur();
     window.addEventListener("keydown", onKey, true);
-    listening = true;
-  });
-  onDestroy(() => {
-    if (listening) window.removeEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   });
 </script>
 

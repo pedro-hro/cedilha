@@ -76,6 +76,9 @@
     });
   }
 
+  // Theme values end up inside a stylesheet: only let plain CSS colors through.
+  const color = (v: string) => (/^[\w#(),.%\s\/-]+$/.test(v) ? v : "transparent");
+
   function injectOmarchyTheme(theme: OmarchyTheme) {
     omarchyTheme = theme;
     let styleEl = document.getElementById("omarchy-theme-style");
@@ -86,20 +89,20 @@
     }
     styleEl.textContent = `
       :root[data-theme="omarchy"] {
-        --bg: ${theme.bg};
-        --bg-elev: ${theme.bg_elev};
-        --bg-surface: ${theme.bg_surface};
-        --fg: ${theme.fg};
-        --fg-dim: ${theme.fg_dim};
-        --accent: ${theme.accent};
-        --accent-2: ${theme.accent2};
-        --danger: ${theme.danger};
-        --success: ${theme.success};
-        --warning: ${theme.warning};
-        --border: ${theme.border};
-        --selection: ${theme.selection};
-        --marker: ${theme.marker};
-        --active-line: ${theme.active_line};
+        --bg: ${color(theme.bg)};
+        --bg-elev: ${color(theme.bg_elev)};
+        --bg-surface: ${color(theme.bg_surface)};
+        --fg: ${color(theme.fg)};
+        --fg-dim: ${color(theme.fg_dim)};
+        --accent: ${color(theme.accent)};
+        --accent-2: ${color(theme.accent2)};
+        --danger: ${color(theme.danger)};
+        --success: ${color(theme.success)};
+        --warning: ${color(theme.warning)};
+        --border: ${color(theme.border)};
+        --selection: ${color(theme.selection)};
+        --marker: ${color(theme.marker)};
+        --active-line: ${color(theme.active_line)};
       }
     `;
   }
@@ -190,6 +193,8 @@
       if (unlistenConfig) unlistenConfig();
       if (unlistenClose) unlistenClose();
       if (unlistenResize) unlistenResize();
+      for (const t of [saveTimer, syncTimer, noticeTimer, statsTimer]) if (t) clearTimeout(t);
+      if (syncRaf !== null) cancelAnimationFrame(syncRaf);
     };
   });
 
@@ -210,7 +215,7 @@
     if (p.font_family) {
       document.documentElement.style.setProperty(
         "--font-mono",
-        `"${p.font_family}", "JetBrains Mono", monospace`,
+        `"${p.font_family.replace(/["\\]/g, "")}", "JetBrains Mono", monospace`,
       );
     }
     if (p.editor_max_width) {
@@ -220,9 +225,14 @@
 
   // Virtual document path for the untitled welcome page, only used to find its pictures.
   let welcomeBase: string | null = null;
+  // Bumped whenever a different document is loaded; a save that finishes afterwards belongs
+  // to the old document and must not touch the new one's unsaved-changes state.
+  let docGen = 0;
 
   function loadInto(doc: string, p: string | null) {
     welcomeBase = null;
+    docGen++;
+    if (saveTimer) clearTimeout(saveTimer);
     // CodeMirror normalizes line endings to \n; keep the rendered text identical so
     // preview source offsets line up with the editor document.
     doc = doc.replace(/\r\n?/g, "\n");
@@ -301,7 +311,6 @@
         loadInto(res.content, res.path);
       }
     } catch (e) {
-      console.error("Failed to open file:", e);
       showNotice(`Open failed: ${errorText(e)}`);
     }
   }
@@ -317,38 +326,31 @@
   }
 
   async function save() {
+    if (!path) return saveAs();
     const snapshot = content;
+    const gen = docGen;
     try {
-      if (!path) {
-        const p = await api.saveAsFile(snapshot);
-        if (p) {
-          path = p;
-          dirty = content !== snapshot;
-          autosavePaused = false;
-        }
-        return;
-      }
       await api.saveDocument(path, snapshot, true);
       // Edits typed while the write was in flight are not saved yet.
+      if (gen !== docGen) return;
       dirty = content !== snapshot;
       autosavePaused = false;
     } catch (e) {
-      console.error("Failed to save:", e);
       showNotice(`Save failed: ${errorText(e)}`);
     }
   }
 
   async function saveAs() {
     const snapshot = content;
+    const gen = docGen;
     try {
       const p = await api.saveAsFile(snapshot);
-      if (p) {
+      if (p && gen === docGen) {
         path = p;
         dirty = content !== snapshot;
         autosavePaused = false;
       }
     } catch (e) {
-      console.error("Failed to save as:", e);
       showNotice(`Save failed: ${errorText(e)}`);
     }
   }
@@ -401,10 +403,12 @@
     saveTimer = setTimeout(async () => {
       if (!path || !dirty || autosavePaused) return;
       const snapshot = content;
+      const gen = docGen;
       try {
         await api.saveDocument(path, snapshot, false);
-        dirty = content !== snapshot;
+        if (gen === docGen) dirty = content !== snapshot;
       } catch (e) {
+        if (gen !== docGen) return;
         const msg = errorText(e);
         if (msg.startsWith("CONFLICT")) {
           autosavePaused = true;
@@ -449,7 +453,7 @@
       } catch {
         /* keep the raw id */
       }
-      document.getElementById(id)?.scrollIntoView({ block: "start" });
+      if (!preview?.scrollToId(id)) document.getElementById(id)?.scrollIntoView({ block: "start" });
     } else if (/^(https?:|mailto:)/i.test(href)) {
       api.openUrl(href).catch((err) => showNotice(`Could not open link: ${errorText(err)}`));
     }
@@ -495,6 +499,8 @@
     const bare = document.activeElement === document.body || document.activeElement === null;
     const copying = (e.ctrlKey || e.metaKey) && ["c", "Insert"].includes(e.key.length === 1 ? e.key.toLowerCase() : e.key);
     const modifierOnly = ["Control", "Shift", "Alt", "Meta", "AltGraph", "CapsLock", "Dead"].includes(e.key);
+    // Preview-only mode has no focused scroller: scroll keys are handled by the preview itself.
+    if (viewMode === "preview" && !settingsOpen && !unsavedPrompt && !(e.target instanceof HTMLInputElement) && preview?.handleKey(e)) return;
     if (bare && !settingsOpen && viewMode !== "preview" && !copying && !modifierOnly) {
       if (editor?.forwardKey(e)) e.preventDefault();
     }
@@ -524,7 +530,7 @@
   function onPrefsUpdated() {
     prefsSynced = JSON.stringify(prefs);
     applyPrefsStyles(prefs);
-    api.savePrefs(prefs).catch(() => {});
+    api.savePrefs(prefs).catch((e) => showNotice(`Could not save settings: ${errorText(e)}`));
   }
 
   // Only genuine changes (Settings panel) are persisted, never the initial defaults.

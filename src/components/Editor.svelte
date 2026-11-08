@@ -99,10 +99,6 @@
     });
   }
 
-  export function getContent(): string {
-    return view?.state.doc.toString() ?? content;
-  }
-
   export function openSearch() {
     if (!view) return;
     view.focus();

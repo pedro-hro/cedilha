@@ -7,13 +7,13 @@
 //! This module reads the active theme palette and provides helpers
 //! to format CSS tokens and watch for desktop theme transitions in real time.
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct OmarchyTheme {
     pub id: String,
     pub name: String,
@@ -35,7 +35,7 @@ pub struct OmarchyTheme {
     pub active_line: String,
 }
 
-pub fn omarchy_dir() -> Option<PathBuf> {
+fn omarchy_dir() -> Option<PathBuf> {
     let home = std::env::var("HOME").ok()?;
     let path = PathBuf::from(home).join(".local/state/omarchy/current");
     if path.exists() {
@@ -45,7 +45,7 @@ pub fn omarchy_dir() -> Option<PathBuf> {
     }
 }
 
-pub fn get_theme_name() -> Option<String> {
+fn get_theme_name() -> Option<String> {
     let dir = omarchy_dir()?;
     let name_file = dir.join("theme.name");
     if let Ok(name) = fs::read_to_string(name_file) {
@@ -58,7 +58,7 @@ pub fn get_theme_name() -> Option<String> {
 }
 
 /// Convert a kebab-case theme name to Title Case (e.g. "greek-noir" -> "Greek Noir").
-pub fn format_display_name(name: &str) -> String {
+fn format_display_name(name: &str) -> String {
     name.split('-')
         .map(|word| {
             let mut chars = word.chars();
@@ -89,6 +89,10 @@ fn parse_toml_key_values(content: &str) -> HashMap<String, String> {
 
 fn hex_to_rgb(hex: &str) -> Option<(u8, u8, u8)> {
     let hex = hex.trim().trim_start_matches('#');
+    // Non-ASCII input would make the byte slices below panic on a char boundary.
+    if !hex.is_ascii() {
+        return None;
+    }
     if hex.len() == 6 {
         let r = u8::from_str_radix(&hex[0..2], 16).ok()?;
         let g = u8::from_str_radix(&hex[2..4], 16).ok()?;
@@ -276,16 +280,16 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_read_omarchy_theme() {
-        let theme = read_current_omarchy_theme();
-        println!("Omarchy theme detected: {:?}", theme);
-        assert!(theme.is_some());
-        let t = theme.unwrap();
-        assert_eq!(t.name, "greek-noir");
-        assert_eq!(t.display_name, "Greek Noir");
-        assert_eq!(t.bg, "#171717");
-        assert_eq!(t.fg, "#CCD0CF");
-        assert_eq!(t.accent, "#F25623");
+    fn hex_parsing_never_panics_on_odd_input() {
+        assert_eq!(hex_to_rgb("#fff"), Some((255, 255, 255)));
+        assert_eq!(hex_to_rgb("#171717"), Some((23, 23, 23)));
+        assert_eq!(hex_to_rgb("abçç"), None);
+        assert_eq!(hex_to_rgb("ççç"), None);
+        assert_eq!(hex_to_rgb(""), None);
+    }
+
+    #[test]
+    fn display_name_is_title_case() {
+        assert_eq!(format_display_name("greek-noir"), "Greek Noir");
     }
 }
-
