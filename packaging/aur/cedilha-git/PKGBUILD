@@ -1,0 +1,65 @@
+# Maintainer: Pedro Henrique Reis de Oliveira <pedrohenriquereisdeoliveira at gmail dot com>
+
+pkgname=cedilha-git
+pkgver=0.1.1
+pkgrel=1
+pkgdesc='Minimalist Markdown & LaTeX editor with a live KaTeX preview'
+arch=('x86_64')
+url='https://github.com/pedro-hro/cedilha'
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'xdg-desktop-portal' 'xdg-utils' 'hicolor-icon-theme')
+makedepends=('cargo' 'bun' 'git')
+provides=('cedilha')
+conflicts=('cedilha')
+source=("cedilha::git+https://github.com/pedro-hro/cedilha.git")
+sha256sums=('SKIP')
+
+pkgver() {
+  cd cedilha
+  printf '%s.r%s.g%s' \
+    "$(grep -m1 '^version' src-tauri/Cargo.toml | cut -d'"' -f2)" \
+    "$(git rev-list --count HEAD)" \
+    "$(git rev-parse --short HEAD)"
+}
+
+prepare() {
+  cd cedilha
+  bun install --frozen-lockfile
+  cd src-tauri
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target "$(rustc -vV | sed -n 's/host: //p')"
+}
+
+build() {
+  cd cedilha
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  bun run build
+  cd src-tauri
+  cargo build --release --frozen --features custom-protocol
+}
+
+check() {
+  cd cedilha/src-tauri
+  export RUSTUP_TOOLCHAIN=stable
+  cargo test --frozen --features custom-protocol
+}
+
+package() {
+  cd cedilha
+  install -Dm755 src-tauri/target/release/cedilha "$pkgdir/usr/bin/cedilha"
+  install -Dm644 src-tauri/packaging/cedilha.desktop "$pkgdir/usr/share/applications/cedilha.desktop"
+
+  # Icons (hicolor theme)
+  install -Dm644 src-tauri/icons/32x32.png        "$pkgdir/usr/share/icons/hicolor/32x32/apps/cedilha.png"
+  install -Dm644 src-tauri/icons/128x128.png      "$pkgdir/usr/share/icons/hicolor/128x128/apps/cedilha.png"
+  install -Dm644 "src-tauri/icons/128x128@2x.png" "$pkgdir/usr/share/icons/hicolor/256x256/apps/cedilha.png"
+  install -Dm644 src-tauri/icons/icon.png         "$pkgdir/usr/share/icons/hicolor/512x512/apps/cedilha.png"
+  install -Dm644 src-tauri/icons/cedilha.svg      "$pkgdir/usr/share/icons/hicolor/scalable/apps/cedilha.svg"
+
+  # Picture used by the welcome page. The app looks for it in <exe dir>/../lib/cedilha/welcome.
+  install -Dm644 src-tauri/resources/welcome/astrophysics-spectra.jpg \
+    "$pkgdir/usr/lib/cedilha/welcome/astrophysics-spectra.jpg"
+
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

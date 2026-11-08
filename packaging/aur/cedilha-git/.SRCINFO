@@ -1,0 +1,21 @@
+pkgbase = cedilha-git
+	pkgdesc = Minimalist Markdown & LaTeX editor with a live KaTeX preview
+	pkgver = 0.1.1
+	pkgrel = 1
+	url = https://github.com/pedro-hro/cedilha
+	arch = x86_64
+	license = MIT
+	makedepends = cargo
+	makedepends = bun
+	makedepends = git
+	depends = webkit2gtk-4.1
+	depends = gtk3
+	depends = xdg-desktop-portal
+	depends = xdg-utils
+	depends = hicolor-icon-theme
+	provides = cedilha
+	conflicts = cedilha
+	source = cedilha::git+https://github.com/pedro-hro/cedilha.git
+	sha256sums = SKIP
+
+pkgname = cedilha-git
