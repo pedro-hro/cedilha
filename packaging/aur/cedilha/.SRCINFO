@@ -13,6 +13,6 @@ pkgbase = cedilha
 	depends = xdg-utils
 	depends = hicolor-icon-theme
 	source = cedilha-0.1.1.tar.gz::https://github.com/pedro-hro/cedilha/archive/refs/tags/v0.1.1.tar.gz
-	sha256sums = 8b0e9a6f4750ec6cd2d90cf6a62ae29f405bc2be55d70c1e29d210afbb58708b
+	sha256sums = 3fb6be275c9d3ce7f85c6dde43e50823bc54c6136bdfe16fc0017e8ed22998f5
 
 pkgname = cedilha
