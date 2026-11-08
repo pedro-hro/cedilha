@@ -1,56 +1,88 @@
 # Cedilha (`ç`)
 
-An opinionated, distraction-free **Markdown & LaTeX** editor built with **Rust** and **Tauri v2**, designed with the **Omarchy aesthetic** for Arch Linux and Hyprland.
+A minimalist, keyboard-first **Markdown & LaTeX** editor built with **Rust**, **Tauri v2** and **Svelte**, made for Arch Linux with Omarchy / Hyprland.
 
-*Inspired by the simplicity of GNOME's Apostrophe, re-engineered in Rust and web technologies for rock-solid stability and instant math rendering.*
+*Inspired by the simplicity of GNOME's Apostrophe.*
 
 ---
 
 ## Features
 
-- **Live LaTeX Math Rendering:** Type inline `$E = mc^2$` or block `$$\int f(x) dx$$` formulas and watch them render instantly with KaTeX. Click any formula to edit the raw LaTeX.
-- **Omarchy / Hyprland Native:** Borderless window chrome with draggable header, letting your window manager handle borders and gaps.
-- **Distraction-Free Typewriter Scrolling:** Keeps the active cursor line vertically centered on the viewport.
-- **Real-Time Word & Reading Stats:** Live word count, character count, line count, and estimated reading time.
-- **Apostrophe-Style View Modes:**
-  - **Edit:** Distraction-free, full-width Markdown editor.
-  - **Split:** Side-by-side view with live rendered HTML and KaTeX preview on the right.
-  - **Preview:** Full-width rendered reading view.
-- **Theming:** Built-in community palettes:
-  - Catppuccin Mocha (Dark)
-  - Catppuccin Latte (Light)
-  - Tokyo Night
-  - Gruvbox Dark
-- **Auto-Save & Safe File I/O:** Debounced background autosave with dirty-state tracking.
+- **Live LaTeX math:** inline `$E = mc^2$` and block `$$\int f(x) dx$$` formulas rendered with KaTeX in the preview.
+- **Omarchy / Hyprland native:** borderless window with a draggable header, so your window manager handles borders and gaps. The `omarchy` theme follows the active Omarchy system theme live.
+- **Typewriter scrolling:** optionally keeps the cursor line vertically centered (toggle in Settings).
+- **Smooth keyboard scrolling** in the editor and the preview.
+- **Live stats:** word, character and line counts and estimated reading time.
+- **View modes:**
+  - **Edit:** full-width Markdown editor.
+  - **Split:** source on the left, rendered preview on the right, scrolled in step.
+  - **Preview:** full-width rendered page.
+- **Find:** in-document search with next/previous match.
+- **Themes:** `omarchy` (follows the system), Catppuccin Mocha, Catppuccin Latte, Tokyo Night and Gruvbox Dark (default).
+- **Auto-save:** once a file has a name, it is written to disk shortly after you stop typing.
+- **Configurable:** preferences and shortcut overrides live in a `config.toml` and in the in-app Settings (`Ctrl+,`).
+
+---
+
+## Installation
+
+### Arch Linux (AUR)
+
+Once published on the AUR:
+
+```bash
+yay -S cedilha        # latest release
+yay -S cedilha-git    # latest git checkout
+```
+
+### Local Arch package
+
+```bash
+git clone https://github.com/pedro-hro/cedilha.git
+cd cedilha/packaging/arch && makepkg -si
+```
+
+### Build from source
+
+Requires [Bun](https://bun.sh), a Rust toolchain, and the Tauri 2 Linux dependencies (`webkit2gtk-4.1`, `gtk3`).
+
+```bash
+git clone https://github.com/pedro-hro/cedilha.git
+cd cedilha
+bun install && bun run build && cd src-tauri && cargo build --release --features custom-protocol
+```
+
+The binary is written to `src-tauri/target/release/cedilha`.
+
+### Development
+
+```bash
+bun run tauri dev
+```
 
 ---
 
 ## Keyboard Shortcuts
 
+Defaults (all rebindable in Settings):
+
 | Shortcut | Action |
 | :--- | :--- |
-| `Ctrl + 1` | Edit Mode (Code only) |
-| `Ctrl + 2` | Split Mode (Side-by-side) |
-| `Ctrl + 3` | Preview Mode (Rendered view) |
-| `Ctrl + P` | Cycle View Modes (Edit ↔ Split ↔ Preview) |
-| `Ctrl + N` | New Document |
-| `Ctrl + O` | Open Document |
-| `Ctrl + S` | Save Document |
-| `Ctrl + Shift + S` | Save As |
-| `Ctrl + ,` | Open Settings |
+| `Ctrl + P` | Cycle view (Edit → Split → Preview) |
+| `Ctrl + N` | New document |
+| `Ctrl + O` | Open document |
+| `Ctrl + S` | Save |
+| `Ctrl + Shift + S` | Save as |
+| `Ctrl + F` | Find |
+| `F3` / `Ctrl + G` | Find next |
+| `Shift + F3` / `Ctrl + Shift + G` | Find previous |
+| `Ctrl + ,` | Settings |
+| `F1` | Welcome page |
+| `Ctrl + M` / `Ctrl + Shift + M` | Minimize / maximize window |
+| `Ctrl + Q` / `Ctrl + W` | Close window |
 
 ---
 
-## Getting Started
+## License
 
-### Development
-```bash
-# Run both the Svelte frontend and the Tauri Rust backend
-bun run tauri dev
-```
-
-### Build Production Binary
-```bash
-bun run tauri build
-```
-The compiled binary will be placed at `src-tauri/target/release/cedilha`.
+[MIT](LICENSE) © 2026 Pedro Henrique Reis de Oliveira

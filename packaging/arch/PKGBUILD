@@ -3,16 +3,16 @@
 #   cd packaging/arch && makepkg -f      # builds cedilha-git-*.pkg.tar.zst
 #   sudo pacman -U cedilha-git-*.pkg.tar.zst
 #
-# For the AUR, replace the local source below with the public repository URL.
+# This file is for local builds; the AUR PKGBUILDs live in packaging/aur/.
 pkgname=cedilha-git
 pkgver=0.1.1
 pkgrel=1
 pkgdesc='Minimalist Markdown & LaTeX editor with a live KaTeX preview'
 arch=('x86_64')
-url='https://github.com/OWNER/cedilha'
+url='https://github.com/pedro-hro/cedilha'
 license=('MIT')
 depends=('webkit2gtk-4.1' 'gtk3' 'xdg-desktop-portal' 'xdg-utils')
-makedepends=('git' 'rust' 'bun')
+makedepends=('git' 'cargo' 'bun')
 provides=('cedilha')
 conflicts=('cedilha')
 source=("cedilha::git+file://$(realpath "$startdir/../..")")
@@ -58,6 +58,5 @@ package() {
   install -Dm644 src-tauri/resources/welcome/astrophysics-spectra.jpg \
     "$pkgdir/usr/lib/cedilha/welcome/astrophysics-spectra.jpg"
 
-  # There is no LICENSE file in the repository yet; add it here once there is one:
-  # install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
 }
